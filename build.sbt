@@ -15,6 +15,7 @@ lazy val root = Project("lila", file("."))
   .enablePlugins(_root_.play.sbt.PlayScala)
   .dependsOn(api)
   .aggregate(api)
+  .
 
 scalaVersion := globalScalaVersion
 resolvers ++= Dependencies.Resolvers.commons
