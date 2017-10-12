@@ -15,7 +15,7 @@ lazy val root = Project("lila", file("."))
   .enablePlugins(_root_.play.sbt.PlayScala)
   .dependsOn(api)
   .aggregate(api)
-  .
+  .settings(inThisBuild(fortifySettings))
 
 scalaVersion := globalScalaVersion
 resolvers ++= Dependencies.Resolvers.commons
@@ -58,6 +58,17 @@ Seq(
     .setPreference(DoubleIndentConstructorArguments, true),
   excludeFilter in scalariformFormat := "*Routes*"
 )
+
+lazy val fortifySettings = Seq(
+  credentials += Credentials(
+    Path.userHome / ".lightbend" / "commercial.credentials"),
+  resolvers += Resolver.url(
+    "lightbend-commercial-releases",
+    new URL("http://repo.lightbend.com/commercial-releases/"))(
+    Resolver.ivyStylePatterns),
+  libraryDependencies += compilerPlugin(
+    "com.lightbend" %% "scala-fortify" % "91c4e364" classifier "assembly"),
+  scalacOptions += s"-P:fortify:build=lila")
 
 lazy val modules = Seq(
   common, db, rating, user, security, hub, socket,
