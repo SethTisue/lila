@@ -21,6 +21,22 @@ object BuildSettings {
     publishArtifact in (Compile, packageSrc) := false
   )
 
+  def fortifySettings = Seq(
+    credentials += Credentials(
+      Path.userHome / ".lightbend" / "commercial.credentials"
+    ),
+    resolvers += Resolver.url(
+      "lightbend-commercial-releases",
+      new URL("http://repo.lightbend.com/commercial-releases/")
+    )(
+        Resolver.ivyStylePatterns
+      ),
+    libraryDependencies += compilerPlugin(
+      "com.lightbend" %% "scala-fortify" % "505d2103" classifier "assembly"
+    ),
+    scalacOptions += s"-P:fortify:build=lila"
+  )
+
   def defaultDeps = Seq(scalaz, chess, scalalib, jodaTime, ws, java8compat, specs2)
 
   def compile(deps: ModuleID*): Seq[ModuleID] = deps map (_ % "compile")
@@ -36,6 +52,7 @@ object BuildSettings {
         version := "2.0",
         libraryDependencies := defaultDeps,
         buildSettings,
+        fortifySettings,
         srcMain
       )
 
