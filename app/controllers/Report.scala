@@ -39,18 +39,27 @@ object Report extends LilaController {
   }
 
   private def onInquiryStart(inquiry: ReportModel) =
-    Redirect(inquiry.room match {
-      case Room.Coms => routes.Mod.communicationPrivate(inquiry.user).url
-      case _ => routes.User.show(inquiry.user).url + "?mod"
-    })
+    inquiry.room match {
+      case Room.Coms => Redirect(routes.Mod.communicationPrivate(inquiry.user))
+      case _ => Mod.redirect(inquiry.user)
+    }
 
-  protected[controllers] def onInquiryClose(inquiry: Option[ReportModel], me: UserModel, force: Boolean = false)(implicit ctx: BodyContext[_]) = {
+  protected[controllers] def onInquiryClose(
+    inquiry: Option[ReportModel],
+    me: UserModel,
+    goTo: Option[Suspect],
+    force: Boolean = false
+  )(implicit ctx: BodyContext[_]) = {
     def autoNext = ctx.body.body match {
       case AnyContentAsFormUrlEncoded(data) => data.get("next").exists(_.headOption contains "1")
       case _ => false
     }
     inquiry match {
-      case None => Redirect(routes.Report.list).fuccess
+      case None => {
+        goTo.fold(Redirect(routes.Report.list)) { s =>
+          Mod.redirect(s.user.username)
+        }.fuccess
+      }
       case Some(prev) =>
         def redirectToList = Redirect(routes.Report.listWithFilter(prev.room.key))
         if (autoNext) api.next(prev.room) flatMap {
@@ -69,7 +78,7 @@ object Report extends LilaController {
 
   def process(id: String) = SecureBody(_.SeeReport) { implicit ctx => me =>
     Env.report.api.inquiries ofModId me.id flatMap { inquiry =>
-      api.process(AsMod(me), id) >> onInquiryClose(inquiry, me, force = true)
+      api.process(AsMod(me), id) >> onInquiryClose(inquiry, me, none, force = true)
     }
   }
 
@@ -95,9 +104,11 @@ object Report extends LilaController {
           BadRequest(html.report.form(err, user, captcha))
         }
       },
-      data => api.create(data, me) map { report =>
-        Redirect(routes.Report.thanks(data.user.username))
-      }
+      data =>
+        if (data.user == me) notFound
+        else api.create(data, lila.report.Reporter(me)) map { report =>
+          Redirect(routes.Report.thanks(data.user.username))
+        }
     )
   }
 

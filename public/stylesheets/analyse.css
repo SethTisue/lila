@@ -412,11 +412,6 @@ body.piece_letter .fork move {
 
 @media (min-width: 1050px) {
 
-  #puzzle div.lichess_game div.lichess_ground {
-    flex: 0 0 280px;
-  }
-  #puzzle .fork { left: 90px; }
-
   div.analyse div.lichess_game div.lichess_ground {
     flex: 0 0 25vw;
     max-width: 25vw;
@@ -1241,8 +1236,8 @@ body.dark .aclocks .aclock.active {
 }
 .tview2.inline {
   padding: 7px 3px 7px 7px;
-  font-size: 18px;
-  line-height: 1.05em;
+  font-size: 16px;
+  line-height: 1em;
 }
 .tview2 move {
   font-family: 'ChessSansPiratf', sans-serif;
@@ -1753,14 +1748,4 @@ body.piece_letter #analyse-cm .title {
 }
 #analyse-cm .action:hover {
   background: #fff;
-}
-
-.gauge_displayed .cg-board-wrap coords.ranks {
-  color: #fff;
-  text-shadow: 0 1px 2px #000;
-  right: -4px;
-  text-align: left;
-}
-.gauge_displayed .cg-board-wrap coords.ranks coord {
-  transform: none;
 }

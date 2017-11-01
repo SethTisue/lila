@@ -1,6 +1,6 @@
 var lichess = window.lichess = window.lichess || {};
 
-lichess.engineName = 'Stockfish 8';
+lichess.engineName = 'Stockfish 8+';
 
 lichess.raf = (window.requestAnimationFrame || window.setTimeout).bind(window);
 lichess.requestIdleCallback = (window.requestIdleCallback || window.setTimeout).bind(window);
@@ -188,6 +188,14 @@ lichess.loadCss = function(url) {
   lichess.loadedCss[url] = true;
   $('head').append($('<link rel="stylesheet" type="text/css" />').attr('href', lichess.assetUrl(url)));
 };
+lichess.unloadCss = function(url) {
+  if (lichess.loadedCss[url]) {
+    lichess.loadedCss[url]  = false;
+    $('head link[rel=stylesheet]')
+      .filter(function() { return this.href.indexOf(url) >= 0 })
+        .remove();
+  }
+}
 lichess.loadScript = function(url, opts) {
   return $.ajax({
     dataType: "script",

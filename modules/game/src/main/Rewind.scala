@@ -1,8 +1,8 @@
 package lila.game
 
 import org.joda.time.DateTime
+import scalaz.Validation.FlatMap._
 
-import chess.{ Color, White, Black }
 import chess.format.{ pgn => chessPgn }
 
 object Rewind {
@@ -18,7 +18,7 @@ object Rewind {
     moveStrs = game.pgnMoves,
     op = sans => chessPgn.Sans(sans.value.dropRight(1)),
     tags = createTags(initialFen, game)
-  ) map { replay =>
+  ).flatMap(_.valid) map { replay =>
       val rewindedGame = replay.state
       val rewindedHistory = rewindedGame.board.history
       val rewindedSituation = rewindedGame.situation

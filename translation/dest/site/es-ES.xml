@@ -274,7 +274,7 @@
   </plurals>
   <plurals name="moreThanNbPerfRatedGames">
     <item quantity="one">≥ %1$s %2%s partidas puntuadas</item>
-    <item quantity="other">≥ %1$s %2%s partidas por puntos</item>
+    <item quantity="other">≥ %1$s %2$s partidas puntuadas</item>
   </plurals>
   <plurals name="needNbMorePerfGames">
     <item quantity="one">Necesitas jugar %1$s partida %2$s puntuada</item>
@@ -451,10 +451,6 @@
   <string name="retryThisPuzzle">Reintentar este ejercicio</string>
   <string name="thisPuzzleIsCorrect">Este ejercicio es correcto e interesante</string>
   <string name="thisPuzzleIsWrong">Este ejercicio es erróneo o aburrido</string>
-  <plurals name="youHaveNbSecondsToMakeYourFirstMove">
-    <item quantity="one">¡Dispones de %s segundos para hacer tu primer movimiento!</item>
-    <item quantity="other">¡Dispones de %s segundos para hacer tu primer movimiento!</item>
-  </plurals>
   <plurals name="nbGamesInPlay">
     <item quantity="one">%s partida en juego</item>
     <item quantity="other">%s partidas en juego</item>
@@ -763,4 +759,5 @@
   <string name="notifications">Notificaciones</string>
   <string name="challenges">Desafíos</string>
   <string name="perfRatingX">Puntuación: %s</string>
+  <string name="xSecondsToPlayTheFirstMove">%s segundos para realizar el primer movimiento</string>
 </resources>

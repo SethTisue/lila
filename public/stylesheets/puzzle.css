@@ -1,3 +1,8 @@
+#puzzle div.lichess_game div.lichess_ground {
+  flex: 0 0 280px;
+  max-width: 280px;
+}
+
 #puzzle .game_control {
   justify-content: center;
 }

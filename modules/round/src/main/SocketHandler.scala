@@ -1,6 +1,5 @@
 package lila.round
 
-import scala.concurrent.duration._
 import scala.concurrent.Promise
 import scala.util.Try
 
@@ -11,7 +10,6 @@ import chess.{ Centis, MoveMetrics, Color }
 import play.api.libs.json.{ JsObject, Json }
 
 import actorApi._, round._
-import lila.common.PimpedJson._
 import lila.common.IpAddress
 import lila.game.{ Pov, PovRef, GameRepo, Game }
 import lila.hub.actorApi.map._
@@ -43,7 +41,7 @@ private[round] final class SocketHandler(
     me: Option[User]
   ): Handler.Controller = {
 
-    def send(msg: Any) { roundMap ! Tell(gameId, msg) }
+    def send(msg: Any): Unit = { roundMap ! Tell(gameId, msg) }
 
     member.playerIdOption.fold[Handler.Controller](({
       case ("p", o) => socket ! Ping(uid, o)

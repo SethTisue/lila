@@ -1,18 +1,17 @@
 package lila.study
 
 import akka.actor.{ ActorRef, ActorSelection }
-import org.joda.time.DateTime
 import scala.concurrent.duration._
 
 import chess.Centis
-import chess.format.pgn.Glyph
+import chess.format.pgn.{ Tags, Glyph }
 import lila.chat.Chat
 import lila.hub.actorApi.map.Tell
 import lila.hub.actorApi.timeline.{ Propagate, StudyCreate, StudyLike }
 import lila.hub.Sequencer
 import lila.socket.Socket.Uid
 import lila.tree.Node.{ Shapes, Comment, Gamebook }
-import lila.user.{ User, UserRepo }
+import lila.user.User
 
 final class StudyApi(
     studyRepo: StudyRepo,
@@ -318,7 +317,7 @@ final class StudyApi(
     }
   }
 
-  def setClock(userId: User.ID, studyId: Study.Id, position: Position.Ref, clock: Option[Centis], uid: Uid): Funit =
+  def setClock(studyId: Study.Id, position: Position.Ref, clock: Option[Centis], uid: Uid): Funit =
     sequenceStudyWithChapter(studyId, position.chapterId) { sc =>
       sc.chapter.setClock(clock, position.path) match {
         case Some(newChapter) =>
@@ -331,20 +330,28 @@ final class StudyApi(
       }
     }
 
-  def setTag(userId: User.ID, studyId: Study.Id, setTag: actorApi.SetTag, uid: Uid) = sequenceStudy(studyId) { study =>
-    Contribute(userId, study) {
-      chapterRepo.byIdAndStudy(setTag.chapterId, studyId) flatMap {
-        _ ?? { oldChapter =>
-          val chapter = oldChapter.setTag(setTag.tag)
-          chapterRepo.setTagsFor(chapter) >> {
-            PgnTags.setRootClockFromTags(chapter) ?? { c =>
-              setClock(userId, study.id, Position(c, Path.root).ref, c.root.clock, uid)
-            }
-          } >>-
-            sendTo(study, Socket.SetTags(chapter.id, chapter.tags, uid))
-        } >>- indexStudy(study)
-      }
+  def setTag(userId: User.ID, studyId: Study.Id, setTag: actorApi.SetTag, uid: Uid) = sequenceStudyWithChapter(studyId, setTag.chapterId) {
+    case Study.WithChapter(study, chapter) => Contribute(userId, study) {
+      doSetTags(study, chapter, PgnTags(chapter.tags + setTag.tag), uid)
     }
+  }
+
+  def setTags(userId: User.ID, studyId: Study.Id, chapterId: Chapter.Id, tags: Tags, uid: Uid) = sequenceStudyWithChapter(studyId, chapterId) {
+    case Study.WithChapter(study, chapter) => Contribute(userId, study) {
+      doSetTags(study, chapter, tags, uid)
+    }
+  }
+
+  private def doSetTags(study: Study, oldChapter: Chapter, tags: Tags, uid: Uid): Funit = {
+    val chapter = oldChapter.copy(tags = tags)
+    (chapter.tags != oldChapter.tags) ?? {
+      chapterRepo.setTagsFor(chapter) >> {
+        PgnTags.setRootClockFromTags(chapter) ?? { c =>
+          setClock(study.id, Position(c, Path.root).ref, c.root.clock, uid)
+        }
+      } >>-
+        sendTo(study, Socket.SetTags(chapter.id, chapter.tags, uid))
+    } >>- indexStudy(study)
   }
 
   def setComment(userId: User.ID, studyId: Study.Id, position: Position.Ref, text: Comment.Text, uid: Uid) = sequenceStudyWithChapter(studyId, position.chapterId) {
@@ -451,14 +458,17 @@ final class StudyApi(
 
   def addChapter(byUserId: User.ID, studyId: Study.Id, data: ChapterMaker.Data, sticky: Boolean, socket: ActorRef, uid: Uid) = sequenceStudy(studyId) { study =>
     Contribute(byUserId, study) {
-      chapterRepo.nextOrderByStudy(study.id) flatMap { order =>
-        chapterMaker(study, data, order, byUserId) flatMap {
-          _ ?? { chapter =>
-            data.initial ?? {
-              chapterRepo.firstByStudy(study.id) flatMap {
-                _.filter(_.isEmptyInitial) ?? chapterRepo.delete
-              }
-            } >> doAddChapter(study, chapter, sticky, uid)
+      chapterRepo.countByStudyId(study.id) flatMap { count =>
+        if (count >= Study.maxChapters) funit
+        else chapterRepo.nextOrderByStudy(study.id) flatMap { order =>
+          chapterMaker(study, data, order, byUserId) flatMap {
+            _ ?? { chapter =>
+              data.initial ?? {
+                chapterRepo.firstByStudy(study.id) flatMap {
+                  _.filter(_.isEmptyInitial) ?? chapterRepo.delete
+                }
+              } >> doAddChapter(study, chapter, sticky, uid)
+            }
           }
         }
       }
@@ -553,14 +563,21 @@ final class StudyApi(
     Contribute(byUserId, study) {
       chapterRepo.byIdAndStudy(chapterId, studyId) flatMap {
         _ ?? { chapter =>
-          chapterRepo.orderedMetadataByStudy(studyId).flatMap {
-            case chaps if chaps.size > 1 => (study.position.chapterId == chapterId).?? {
+          chapterRepo.orderedMetadataByStudy(studyId).flatMap { chaps =>
+            // deleting the only chapter? Automatically create an empty one
+            if (chaps.size < 2) {
+              chapterMaker(study, ChapterMaker.Data(Chapter.Name("Chapter 1")), 1, byUserId) flatMap {
+                _ ?? { c =>
+                  doAddChapter(study, c, sticky = true, uid) >> doSetChapter(study, c.id, uid)
+                }
+              }
+            } // deleting the current chapter? Automatically move to another one
+            else (study.position.chapterId == chapterId).?? {
               chaps.find(_.id != chapterId) ?? { newChap =>
                 doSetChapter(study, newChap.id, uid)
               }
-            } >> chapterRepo.delete(chapter.id)
-            case _ => funit
-          } >>- reloadChapters(study)
+            }
+          } >> chapterRepo.delete(chapter.id) >>- reloadChapters(study)
         } >>- indexStudy(study)
       }
     }

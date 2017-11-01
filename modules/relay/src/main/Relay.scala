@@ -12,8 +12,14 @@ case class Relay(
     sync: Relay.Sync,
     ownerId: User.ID,
     likes: Study.Likes,
+    /* When it's planned to start */
     startsAt: Option[DateTime],
-    finishedAt: Option[DateTime],
+    /* When it actually starts */
+    startedAt: Option[DateTime],
+    /* at least it *looks* finished... but maybe it's not
+     * sync.nextAt is used for actually synchronising */
+    finished: Boolean,
+    official: Boolean,
     createdAt: DateTime
 ) {
 
@@ -26,10 +32,21 @@ case class Relay(
     if (s.isEmpty) "-" else s
   }
 
-  def finished = finishedAt.isDefined
+  def finish = copy(
+    finished = true,
+    sync = sync.pause
+  )
 
-  def setFinished = copy(sync = sync.stop, finishedAt = DateTime.now.some)
-  def setUnFinished = copy(finishedAt = none)
+  def resume = copy(
+    finished = false,
+    sync = sync.play
+  )
+
+  def ensureStarted = copy(
+    startedAt = startedAt orElse DateTime.now.some
+  )
+
+  def hasStarted = startedAt.isDefined
 
   def withSync(f: Relay.Sync => Relay.Sync) = copy(sync = f(sync))
 
@@ -44,29 +61,44 @@ object Relay {
 
   case class Sync(
       upstream: Sync.Upstream,
-      until: Option[DateTime],
-      nextAt: Option[DateTime],
-      delay: Option[Int] = None,
+      until: Option[DateTime], // sync until then; resets on move
+      nextAt: Option[DateTime], // when to run next sync
+      delay: Option[Int], // override time between two sync (rare)
       log: SyncLog
   ) {
 
-    def seconds: Option[Int] = until map { until =>
-      (until.getSeconds - nowSeconds).toInt
+    def renew = copy(
+      until = DateTime.now.plusHours(1).some
+    )
+    def ongoing = until ?? DateTime.now.isBefore
+
+    def play = renew.copy(
+      nextAt = nextAt orElse DateTime.now.plusSeconds(3).some
+    )
+    def pause = copy(
+      nextAt = none,
+      until = none
+    )
+
+    def seconds: Option[Int] = until map { u =>
+      (u.getSeconds - nowSeconds).toInt
     } filter (0<)
 
-    def stop = copy(until = none, nextAt = none)
-    def start = copy(until = DateTime.now plusHours 3 some, nextAt = DateTime.now plusSeconds 3 some)
+    def playing = nextAt.isDefined
+    def paused = !playing
+
+    def addLog(event: SyncLog.Event) = copy(log = log add event)
 
     override def toString = upstream.toString
   }
 
   object Sync {
-    sealed abstract class Upstream(val key: String, val url: String) {
+    sealed abstract class Upstream(val key: String, val url: String, val heavy: Boolean) {
       override def toString = s"$key $url"
     }
     object Upstream {
-      case class DgtOneFile(fileUrl: String) extends Upstream("dgt-one", fileUrl)
-      case class DgtManyFiles(dirUrl: String) extends Upstream("dgt-many", dirUrl)
+      case class DgtOneFile(fileUrl: String) extends Upstream("dgt-one", fileUrl, false)
+      case class DgtManyFiles(dirUrl: String) extends Upstream("dgt-many", dirUrl, true)
     }
   }
 
@@ -74,9 +106,8 @@ object Relay {
 
   case class WithStudyAndLiked(relay: Relay, study: Study, liked: Boolean)
 
-  case class Selection(
-      created: List[WithStudyAndLiked],
-      started: List[WithStudyAndLiked],
-      closed: List[WithStudyAndLiked]
+  case class Fresh(
+      created: Seq[WithStudyAndLiked],
+      started: Seq[WithStudyAndLiked]
   )
 }

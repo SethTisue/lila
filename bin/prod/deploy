@@ -13,10 +13,6 @@ elif [ $mode = "stage" ]; then
   REMOTE="khiaw"
   REMOTE_DIR="/home/lichess-stage"
   CLI="bin/cli-stage"
-elif [ $mode = "koala" ]; then
-  REMOTE="koala"
-  REMOTE_DIR="/home/lichess-stage"
-  CLI="bin/cli-stage"
 elif [ $mode = "local" ]; then
   REMOTE="localhost"
   REMOTE_DIR="/tmp/lila5"
@@ -41,7 +37,7 @@ if [ "$2" = "asset" ]; then
 fi
 
 if [ $mode = "main" ]; then
-  lilalog "Notify users of pre deploy"
+  lilalog "Notify pre deploy"
   $CLI deploy pre
 fi
 
@@ -97,22 +93,25 @@ fi
 read -n 1 -p "Press [Enter] to complete deployment to $mode server $REMOTE:$REMOTE_DIR"
 
 if [ $mode = "main" ]; then
-  lilalog "Notify users of post deploy"
+  lilalog "Notify post deploy"
   $CLI deploy post
 fi
+
+# ensure FS cache is ready before booting (slow hard drives)
+FS_WARMUP="cat $REMOTE_DIR/lib/* > /dev/null && cat $REMOTE_DIR/bin/lila > /dev/null"
 
 if [ $mode = "main" ]; then
   lilalog "Restart lichess"
   RUN_DIR="/home/lichess"
-  ssh $REMOTE "chown -R lichess:lichess $REMOTE_DIR && rm $RUN_DIR && ln -s $REMOTE_DIR $RUN_DIR && service lichess restart"
+  SSH_COMMAND="chown -R lichess:lichess $REMOTE_DIR && $FS_WARMUP && rm $RUN_DIR && ln -s $REMOTE_DIR $RUN_DIR && systemctl restart lichess"
+  echo $SSH_COMMAND
+  ssh $REMOTE $SSH_COMMAND
 fi
 if [ $mode = "stage" ]; then
   lilalog "Restart lichess-stage"
-  ssh $REMOTE "chown -R lichess:lichess $REMOTE_DIR && service lichess-stage restart"
-fi
-if [ $mode = "koala" ]; then
-  lilalog "Restart lichess-stage"
-  ssh $REMOTE "chown -R lichess:lichess $REMOTE_DIR && service lichess-stage restart"
+  SSH_COMMAND="chown -R lichess:lichess $REMOTE_DIR && $FS_WARMUP && systemctl restart lichess-stage"
+  echo $SSH_COMMAND
+  ssh $REMOTE $SSH_COMMAND
 fi
 
 lilalog "Deploy complete"

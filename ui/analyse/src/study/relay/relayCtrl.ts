@@ -1,5 +1,6 @@
 import { RelayData, LogEvent } from './interfaces';
 import { StudyChapter, StudyChapterRelay } from '../interfaces';
+import { isFinished } from '../studyChapters';
 
 export default class RelayCtrl {
 
@@ -18,15 +19,13 @@ export default class RelayCtrl {
     this.redraw();
   }
 
-  loading = () => !this.cooldown && !!this.data.sync.seconds;
+  loading = () => !this.cooldown && this.data.sync.ongoing;
 
   applyChapterRelay = (c: StudyChapter, r?: StudyChapterRelay) => {
     if (this.clockInterval) clearInterval(this.clockInterval);
     if (r) {
       c.relay = this.convertDate(r);
-      if (!c.tags.find(t => t[0] === 'Result' && t[1] !== '*')) {
-        this.clockInterval = setInterval(this.redraw, 1000);
-      }
+      if (!isFinished(c)) this.clockInterval = setInterval(this.redraw, 1000);
     }
   }
 

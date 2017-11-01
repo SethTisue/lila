@@ -11,7 +11,7 @@ import lila.user.UserRepo
 final class PlaybanApi(
     coll: Coll,
     sandbag: SandbagWatch,
-    isRematch: String => Boolean
+    bus: lila.common.Bus
 ) {
 
   import lila.db.BSON.BSONJodaDateTimeHandler
@@ -28,7 +28,7 @@ final class PlaybanApi(
   private val blameableSources: Set[Source] = Set(Source.Lobby, Source.Pool, Source.Tournament)
 
   private def blameable(game: Game): Fu[Boolean] =
-    (game.source.exists(s => blameableSources(s)) && game.hasClock && !isRematch(game.id)) ?? {
+    (game.source.exists(s => blameableSources(s)) && game.hasClock) ?? {
       if (game.rated) fuccess(true)
       else UserRepo.containsEngine(game.userIds) map (!_)
     }
@@ -37,14 +37,11 @@ final class PlaybanApi(
     blameable(game) flatMap { _ ?? f }
 
   def abort(pov: Pov, isOnGame: Set[Color]): Funit = IfBlameable(pov.game) {
-    {
-      if (pov.game olderThan 30) pov.game.playerWhoDidNotMove map { Blame(_, Outcome.NoPlay) }
-      else if (pov.game olderThan 15) none
-      else if (isOnGame(pov.opponent.color)) pov.player.some map { Blame(_, Outcome.Abort) }
-      else none
-    } ?? {
-      case Blame(player, outcome) => player.userId.??(save(outcome))
-    }
+    pov.player.userId.ifTrue(isOnGame(pov.opponent.color)) ?? save(Outcome.Abort)
+  }
+
+  def noStart(pov: Pov): Funit = IfBlameable(pov.game) {
+    pov.player.userId ?? save(Outcome.NoPlay)
   }
 
   def rageQuit(game: Game, quitterColor: Color): Funit =
@@ -52,32 +49,57 @@ final class PlaybanApi(
       game.player(quitterColor).userId ?? save(Outcome.RageQuit)
     }
 
-  def sittingOrGood(game: Game, sitterColor: Color): Funit =
-    sandbag(game, sitterColor) >> IfBlameable(game) {
-      List(
-        goodFinish(game, !sitterColor),
-        (for {
-          userId <- game.player(sitterColor).userId
-          seconds = nowSeconds - game.movedAt.getSeconds
-          clock <- game.clock
-          limit = (clock.estimateTotalSeconds / 8) atLeast 15 atMost (2 * 60)
-          if seconds >= limit
-        } yield save(Outcome.Sitting)(userId)) | goodFinish(game, sitterColor)
-      ).sequenceFu.void
+  def flag(game: Game, flaggerColor: Color): Funit = {
+
+    def unreasonableTime = game.clock map { c =>
+      (c.estimateTotalSeconds / 12) atLeast 15 atMost (3 * 60)
     }
+
+    // flagged after waiting a long time
+    def sitting = for {
+      userId <- game.player(flaggerColor).userId
+      seconds = nowSeconds - game.movedAt.getSeconds
+      limit <- unreasonableTime
+      if seconds >= limit
+    } yield save(Outcome.Sitting)(userId)
+
+    // flagged after waiting a short time;
+    // but the previous move used a long time.
+    // assumes game was already checked for sitting
+    def sitMoving = for {
+      userId <- game.player(flaggerColor).userId
+      movetimes <- game moveTimes flaggerColor
+      lastMovetime <- movetimes.lastOption
+      limit <- unreasonableTime
+      if lastMovetime.toSeconds >= limit
+    } yield save(Outcome.SitMoving)(userId)
+
+    sandbag(game, flaggerColor) flatMap { isSandbag =>
+      IfBlameable(game) {
+        sitting orElse
+          sitMoving getOrElse
+          goodOrSandbag(game, flaggerColor, isSandbag)
+      }
+    }
+  }
 
   def other(game: Game, status: Status.type => Status, winner: Option[Color]): Funit =
-    winner.?? { w => sandbag(game, !w) } >> IfBlameable(game) {
-      ((for {
-        w <- winner
-        loserId <- game.player(!w).userId
-        if Status.NoStart is status
-      } yield List(save(Outcome.NoPlay)(loserId), goodFinish(game, w))) |
-        game.userIds.map(save(Outcome.Good))).sequenceFu.void
+    winner.?? { w => sandbag(game, !w) } flatMap { isSandbag =>
+      IfBlameable(game) {
+        ~(for {
+          w <- winner
+          loserId <- game.player(!w).userId
+        } yield {
+          if (Status.NoStart is status) save(Outcome.NoPlay)(loserId)
+          else goodOrSandbag(game, !w, isSandbag)
+        })
+      }
     }
 
-  private def goodFinish(game: Game, color: Color): Funit =
-    ~(game.player(color).userId.map(save(Outcome.Good)))
+  private def goodOrSandbag(game: Game, color: Color, isSandbag: Boolean): Funit =
+    game.player(color).userId ?? {
+      save(if (isSandbag) Outcome.Sandbag else Outcome.Good)
+    }
 
   def currentBan(userId: String): Fu[Option[TempBan]] = coll.find(
     $doc("_id" -> userId, "b.0" $exists true),
@@ -114,12 +136,13 @@ final class PlaybanApi(
     }
 
   private def save(outcome: Outcome): String => Funit = userId => {
+    lila.mon.playban.outcome(outcome.key)()
     coll.findAndUpdate(
       selector = $id(userId),
       update = $doc("$push" -> $doc(
         "o" -> $doc(
           "$each" -> List(outcome),
-          "$slice" -> -20
+          "$slice" -> -30
         )
       )),
       fetchNewObject = true,
@@ -127,19 +150,25 @@ final class PlaybanApi(
     ).map(_.value)
   } map2 UserRecordBSONHandler.read flatMap {
     case None => fufail(s"can't find record for user $userId")
+    case _ if outcome == Outcome.Good => funit
     case Some(record) => legiferate(record)
   } logFailure lila.log("playban")
 
-  private def legiferate(record: UserRecord): Funit = record.newBan ?? { ban =>
-    coll.update(
-      $id(record.userId),
-      $unset("o") ++
-        $push(
-          "b" -> $doc(
-            "$each" -> List(ban),
-            "$slice" -> -30
+  private def legiferate(record: UserRecord): Funit = {
+    record.bannable ?? { ban =>
+      lila.mon.playban.ban.count()
+      lila.mon.playban.ban.mins(ban.mins)
+      bus.publish(lila.hub.actorApi.playban.Playban(record.userId, ban.mins), 'playban)
+      (!record.banInEffect) ?? coll.update(
+        $id(record.userId),
+        $unset("o") ++
+          $push(
+            "b" -> $doc(
+              "$each" -> List(ban),
+              "$slice" -> -30
+            )
           )
-        )
-    ).void
+      ).void
+    }
   }
 }

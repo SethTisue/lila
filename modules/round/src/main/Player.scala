@@ -6,7 +6,6 @@ import chess.{ MoveMetrics, Centis, Status, Color, MoveOrDrop }
 import actorApi.round.{ HumanPlay, DrawNo, TakebackNo, ForecastPlay }
 import akka.actor.ActorRef
 import lila.game.{ Game, Progress, Pov, UciMemo }
-import scala.concurrent.duration._
 
 private[round] final class Player(
     fishnetPlayer: lila.fishnet.Player,
@@ -127,7 +126,7 @@ private[round] final class Player(
   private def moveFinish(game: Game, color: Color)(implicit proxy: GameProxy): Fu[Events] = game.status match {
     case Status.Mate => finisher.other(game, _.Mate, game.toChess.situation.winner)
     case Status.VariantEnd => finisher.other(game, _.VariantEnd, game.toChess.situation.winner)
-    case status @ (Status.Stalemate | Status.Draw) => finisher.other(game, _ => status)
+    case status @ (Status.Stalemate | Status.Draw) => finisher.other(game, _ => status, None)
     case _ => fuccess(Nil)
   }
 }

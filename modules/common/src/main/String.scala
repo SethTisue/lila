@@ -1,16 +1,18 @@
 package lila.common
 
 import java.text.Normalizer
-import java.util.regex.Matcher.quoteReplacement
+import play.api.libs.json._
 import play.twirl.api.Html
 
 object String {
 
   private val slugR = """[^\w-]""".r
+  private val slugMultiDashRegex = """-{2,}""".r
 
   def slugify(input: String) = {
     val nowhitespace = input.trim.replace(" ", "-")
-    val normalized = Normalizer.normalize(nowhitespace, Normalizer.Form.NFD)
+    val singleDashes = slugMultiDashRegex.replaceAllIn(nowhitespace, "-")
+    val normalized = Normalizer.normalize(singleDashes, Normalizer.Form.NFD)
     val slug = slugR.replaceAllIn(normalized, "")
     slug.toLowerCase
   }
@@ -52,19 +54,17 @@ object String {
     private def nl2brUnsafe(text: String): String =
       text.replace("\r\n", "<br />").replace("\n", "<br />")
 
-    def nl2br(text: String) = Html(nl2brUnsafe(text))
-
     def shortenWithBr(text: String, length: Int) = Html {
-      nl2brUnsafe(escapeHtmlUnsafe(text).take(length)).replace("<br /><br />", "<br />")
+      nl2brUnsafe(escapeHtmlUnsafe(text.take(length))).replace("<br /><br />", "<br />")
     }
 
     def shorten(text: String, length: Int, sep: String = "…"): Html = {
       val t = text.replace("\n", " ")
-      if (t.size > (length + sep.size)) Html(escapeHtmlUnsafe(t take length) ++ sep)
+      if (t.size > (length + sep.size)) Html(escapeHtmlUnsafe(t.take(length) ++ sep))
       else escapeHtml(t)
     }
 
-    def autoLink(text: String): Html = nl2br(addUserProfileLinksUnsafe(addLinksUnsafe(escapeHtmlUnsafe(text))))
+    def autoLink(text: String): Html = Html(nl2brUnsafe(addUserProfileLinksUnsafe(addLinksUnsafe(escapeHtmlUnsafe(text)))))
     private val urlRegex = """(?i)\b((https?:\/\/|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,6}\/)((?:[`!\[\]{};:'".,<>?«»“”‘’]*[^\s`!\[\]{}\(\);:'".,<>?«»“”‘’])*))""".r
     // private val imgRegex = """(?:(?:https?:\/\/))[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,4}\b(?:[-a-zA-Z0-9@:%_\+.~#?&\/=]*(\.jpg|\.png|\.jpeg))""".r
     private val netDomain = "lichess.org" // whatever...
@@ -74,7 +74,7 @@ object String {
      * @param text The text to regex match
      * @return The text as a HTML hyperlink
      */
-    def addUserProfileLinks(text: String) = Html(addUserProfileLinksUnsafe(text))
+    def addUserProfileLinks(html: Html) = Html(addUserProfileLinksUnsafe(html.body))
 
     private def addUserProfileLinksUnsafe(text: String): String =
       atUsernameRegex.replaceAllIn(text, m => {
@@ -82,7 +82,7 @@ object String {
         s"""<a href="/@/$user">@$user</a>"""
       })
 
-    def addLinks(text: String) = Html(addLinksUnsafe(text))
+    def addLinks(html: Html) = Html(addLinksUnsafe(html.body))
 
     private def addLinksUnsafe(text: String): String = try {
       urlRegex.replaceAllIn(text, m => {
@@ -126,38 +126,38 @@ object String {
 
     private def urlOrImgUnsafe(url: String): String = urlToImgUnsafe(url) getOrElse url
 
+    val escapeHtmlUnsafe = lila.common.base.StringUtils.escapeHtmlUnsafe _
+
     // from https://github.com/android/platform_frameworks_base/blob/d59921149bb5948ffbcb9a9e832e9ac1538e05a0/core/java/android/text/TextUtils.java#L1361
     def escapeHtml(s: String): Html = Html(escapeHtmlUnsafe(s))
 
-    private val badChars = "[<>&\"']".r.pattern
-
-    def escapeHtmlUnsafe(s: String): String = {
-      if (badChars.matcher(s).find) {
-        val sb = new StringBuilder(s.size + 10) // wet finger style
-        var i = 0
-        while (i < s.length) {
-          sb.append {
-            s.charAt(i) match {
-              case '<' => "&lt;"
-              case '>' => "&gt;"
-              case '&' => "&amp;"
-              case '"' => "&quot;"
-              case '\'' => "&#39;"
-              case c => c
-            }
-          }
-          i += 1
-        }
-        sb.toString
-      } else s
-    }
-
     private val markdownLinkRegex = """\[([^\[]+)\]\(([^\)]+)\)""".r
 
-    def markdownLinks(text: String): Html = nl2br {
+    def markdownLinks(text: String): Html = Html(nl2brUnsafe {
       markdownLinkRegex.replaceAllIn(escapeHtmlUnsafe(text), m => {
         s"""<a href="${m group 2}">${m group 1}</a>"""
       })
+    })
+
+    def safeJsonValue(jsValue: JsValue): String = {
+      import lila.common.base.StringUtils.safeJsonString
+      // Borrowed from:
+      // https://github.com/playframework/play-json/blob/160f66a84a9c5461c52b50ac5e222534f9e05442/play-json/js/src/main/scala/StaticBinding.scala#L65
+      jsValue match {
+        case JsNull => "null"
+        case JsString(s) => safeJsonString(s)
+        case JsNumber(n) => n.toString
+        case JsBoolean(b) => if (b) "true" else "false"
+        case JsArray(items) => items.map(safeJsonValue).mkString("[", ",", "]")
+        case JsObject(fields) => {
+          fields.map {
+            case (key, value) =>
+              s"${safeJsonString(key)}:${safeJsonValue(value)}"
+          }.mkString("{", ",", "}")
+        }
+      }
     }
+
+    def safeJson(jsValue: JsValue): Html = Html(safeJsonValue(jsValue))
   }
 }

@@ -1,7 +1,5 @@
 package lila.game
 
-import scala.concurrent.duration._
-
 import chess.Color.{ White, Black }
 import chess.format.{ Uci, FEN }
 import chess.opening.{ FullOpening, FullOpeningDB }
@@ -491,9 +489,34 @@ case class Game(
   def estimateTotalTime = estimateClockTotalTime orElse
     correspondenceClock.map(_.estimateTotalTime) getOrElse 1200
 
+  def timeForFirstMove: Centis = Centis ofSeconds {
+    import chess.Speed._
+    val base = if (isTournament) speed match {
+      case UltraBullet => 11
+      case Bullet => 16
+      case Blitz => 21
+      case _ => 25
+    }
+    else speed match {
+      case UltraBullet => 15
+      case Bullet => 20
+      case Blitz => 25
+      case _ => 35
+    }
+    if (variant == chess.variant.Chess960) (base * 2) atMost 90
+    else base
+  }
+
+  def expirable =
+    source.exists(Source.expirable.contains) && playable && !bothPlayersHaveMoved && nonAi && hasClock
+
+  def timeBeforeExpiration: Option[Centis] = expirable option {
+    Centis.ofMillis(movedAt.getMillis - nowMillis + timeForFirstMove.millis).nonNeg
+  }
+
   def playerWhoDidNotMove: Option[Player] = playedTurns match {
-    case 0 => player(White).some
-    case 1 => player(Black).some
+    case 0 => player(startColor).some
+    case 1 => player(!startColor).some
     case _ => none
   }
 

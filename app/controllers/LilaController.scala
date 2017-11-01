@@ -119,11 +119,8 @@ private[controllers] trait LilaController
     SecureBody(BodyParsers.parse.anyContent)(perm(Permission))(f)
 
   protected def Firewall[A <: Result](a: => Fu[A])(implicit ctx: Context): Fu[Result] =
-    Env.security.firewall.accepts(ctx.req) flatMap {
-      _ fold (a, {
-        fuccess { Redirect(routes.Lobby.home()) }
-      })
-    }
+    if (Env.security.firewall accepts ctx.req) a
+    else fuccess(Redirect(routes.Lobby.home()))
 
   protected def NoTor(res: => Fu[Result])(implicit ctx: Context) =
     if (Env.security.tor isExitNode HTTPRequest.lastRemoteAddress(ctx.req))
@@ -146,7 +143,7 @@ private[controllers] trait LilaController
           html = Lobby.renderHome(Results.Forbidden),
           api = _ => fuccess {
             Forbidden(jsonError(
-              s"Banned from playing for ${ban.remainingMinutes} minutes. Reason: Too many aborts or unplayed games"
+              s"Banned from playing for ${ban.remainingMinutes} minutes. Reason: Too many aborts, unplayed games, or rage quits."
             )) as JSON
           }
         )

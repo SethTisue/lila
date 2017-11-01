@@ -54,7 +54,7 @@ final class Env(
   private val InfluxEventEnv = config getString "api.influx_event.env"
 
   val assetVersion = new AssetVersionApi(
-    initialVersion = lila.common.AssetVersion(config getInt "net.asset.version"),
+    fromConfig = lila.common.AssetVersion(config getInt "net.asset.version"),
     coll = db("flag")
   )(system)
 
@@ -119,7 +119,7 @@ final class Env(
 
   private def makeUrl(path: String): String = s"${Net.BaseUrl}/$path"
 
-  lazy val cli = new Cli(system.lilaBus, renderer)
+  lazy val cli = new Cli(system.lilaBus)
 
   KamonPusher.start(system) {
     new KamonPusher(countUsers = () => userEnv.onlineUserIdMemo.count)

@@ -107,6 +107,8 @@ export default class RoundController {
 
     setTimeout(this.delayedInit, 200);
 
+    setTimeout(this.showExpiration, 350);
+
     setTimeout(this.showYourMoveNotification, 500);
 
     // at the end:
@@ -119,6 +121,13 @@ export default class RoundController {
         });
         if (this.music && set !== 'music') this.music = undefined;
     });
+
+  }
+
+  private showExpiration = () => {
+    if (!this.data.expiration) return;
+    this.redraw();
+    setTimeout(this.showExpiration, 250);
   }
 
   private onUserMove = (orig: cg.Key, dest: cg.Key, meta: cg.MoveMetadata) => {
@@ -391,6 +400,10 @@ export default class RoundController {
         oc.white,
         oc.black);
     }
+    if (this.data.expiration) {
+      if (this.data.steps.length > 2) this.data.expiration = undefined;
+      else this.data.expiration.movedAt = Date.now();
+    }
     this.redraw();
     if (d.blind) blind.reload(this);
     if (playing && playedColor === d.player.color) {
@@ -493,8 +506,7 @@ export default class RoundController {
       }, 1000);
     }, _ => {
       this.challengeRematched = false;
-      // $.modal(data.error);
-      });
+    });
   };
 
   private makeCorrespondenceClock = (): void => {

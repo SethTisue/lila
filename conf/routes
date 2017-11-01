@@ -119,7 +119,7 @@ POST  /training/:id/attempt            controllers.Puzzle.round(id: Int)
 
 # User Analysis
 GET   /analysis/socket                 controllers.UserAnalysis.socket
-GET   /analysis/keyboard-i18n          controllers.UserAnalysis.keyboardI18n
+GET   /analysis/help                   controllers.UserAnalysis.help
 GET   /analysis/*something             controllers.UserAnalysis.parse(something: String)
 GET   /analysis                        controllers.UserAnalysis.index
 POST  /analysis/pgn                    controllers.UserAnalysis.pgn
@@ -150,10 +150,11 @@ GET   /study/embed/$id<\w{8}>/$chapterId<\w{8}>  controllers.Study.embed(id: Str
 POST  /study/$id<\w{8}>/clear-chat     controllers.Study.clearChat(id: String)
 
 # Relay
-GET   /broadcast                           controllers.Relay.index
+GET   /broadcast                           controllers.Relay.index(page: Int ?= 1)
 GET   /broadcast/new                       controllers.Relay.form
 POST  /broadcast/new                       controllers.Relay.create
 GET   /broadcast/:slug/$id<\w{8}>          controllers.Relay.show(slug: String, id: String)
+GET   /broadcast/:slug/$id<\w{8}>/$chapterId<\w{8}> controllers.Relay.chapter(slug: String, id: String, chapterId: String)
 GET   /broadcast/:slug/$id<\w{8}>/edit     controllers.Relay.edit(slug: String, id: String)
 POST  /broadcast/:slug/$id<\w{8}>/edit     controllers.Relay.update(slug: String, id: String)
 # GET   /broadcast/:slug/$id<\w{8}>/$chapterId<\w{8}> controllers.Relay.chapter(slug: String, id: String, chapterId: String)
@@ -358,6 +359,7 @@ POST  /mod/:username/engine/:v         controllers.Mod.engine(username: String, 
 POST  /mod/:username/booster/:v        controllers.Mod.booster(username: String, v: Boolean)
 POST  /mod/:username/troll/:v          controllers.Mod.troll(username: String, v: Boolean)
 POST  /mod/:username/ban/:v            controllers.Mod.ban(username: String, v: Boolean)
+POST  /mod/:username/delete-pms-and-chats controllers.Mod.deletePmsAndChats(username: String)
 POST  /mod/:username/warn              controllers.Mod.warn(username: String, subject: String)
 POST  /mod/:username/close             controllers.Mod.closeAccount(username: String)
 POST  /mod/:username/reopen            controllers.Mod.reopenAccount(username: String)
@@ -365,7 +367,6 @@ POST  /mod/:username/title             controllers.Mod.setTitle(username: String
 POST  /mod/:username/inquiry           controllers.Mod.spontaneousInquiry(username: String)
 GET   /mod/:username/communication     controllers.Mod.communicationPublic(username: String)
 GET   /mod/:username/communication/private controllers.Mod.communicationPrivate(username: String)
-POST  /mod/:ip/ipban                   controllers.Mod.ipban(ip: String)
 POST  /mod/:username/kickFromRankings  controllers.Mod.kickFromRankings(username: String)
 POST  /mod/:username/reportban/:v      controllers.Mod.reportban(username: String, v: Boolean)
 POST  /mod/:username/impersonate       controllers.Mod.impersonate(username: String)
@@ -382,6 +383,8 @@ GET   /mod/:username/permissions       controllers.Mod.permissions(username: Str
 POST  /mod/:username/permissions       controllers.Mod.savePermissions(username: String)
 GET   /mod/public-chat                 controllers.Mod.publicChat
 GET   /mod/email-confirm               controllers.Mod.emailConfirm
+GET   /mod/chat-panic                  controllers.Mod.chatPanic
+POST  /mod/chat-panic                  controllers.Mod.chatPanicPost
 
 # Irwin
 GET   /irwin                               controllers.Irwin.dashboard
@@ -507,7 +510,6 @@ GET   /event/manager/new               controllers.Event.form
 POST  /event/manager                   controllers.Event.create
 
 # Misc
-POST  /cli                             controllers.Cli.command
 GET   /captcha/$id<\w{8}>              controllers.Main.captchaCheck(id: String)
 GET   /developers                      controllers.Main.developers
 GET   /embed                           controllers.Main.embed
@@ -515,6 +517,11 @@ GET   /mobile                          controllers.Main.mobile
 GET   /lag                             controllers.Main.lag
 GET   /fpmenu                          controllers.Main.fpmenu
 GET   /get-fishnet                     controllers.Main.getFishnet
+GET   /dev/asset-version               controllers.Dev.assetVersion
+POST  /dev/asset-version               controllers.Dev.assetVersionPost
+GET   /dev/cli                         controllers.Dev.cli
+POST  /dev/cli                         controllers.Dev.cliPost
+POST  /cli                             controllers.Dev.command
 
 # Mobile Push
 POST  /mobile/register/:platform/:deviceId controllers.Main.mobileRegister(platform: String, deviceId: String)

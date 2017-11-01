@@ -83,7 +83,7 @@ export default class AnalyseCtrl {
   showComputer: StoredBooleanProp = storedProp('show-computer', true);
   keyboardHelp: boolean = location.hash === '#keyboard';
   threatMode: Prop<boolean> = prop(false);
-  treeView: TreeView = treeViewCtrl();
+  treeView: TreeView;
   cgVersion = {
     js: 1, // increment to recreate chessground
     dom: 1
@@ -105,8 +105,8 @@ export default class AnalyseCtrl {
     this.element = opts.element;
     this.embed = opts.embed;
     this.redraw = redraw;
-
     this.trans = opts.trans;
+    this.treeView = treeViewCtrl(opts.embed ? 'inline' : 'column');
 
     if (this.data.forecast) this.forecast = makeForecast(this.data.forecast, this.data, redraw);
 
@@ -127,7 +127,7 @@ export default class AnalyseCtrl {
       const mainline = treeOps.mainlineNodeList(this.tree.root);
       if (plyStr === 'last') this.initialPath = treePath.fromNodeList(mainline);
       else {
-        var ply = parseInt(plyStr as string);
+        const ply = parseInt(plyStr as string);
         if (ply) this.initialPath = treeOps.takePathWhile(mainline, n => n.ply <= ply);
       }
     }
@@ -691,7 +691,7 @@ export default class AnalyseCtrl {
     this.resetAutoShapes();
   }
 
-  toggleGauge() {
+  toggleGauge = () => {
     this.showGauge(!this.showGauge());
   }
 

@@ -240,7 +240,7 @@
   </plurals>
   <plurals name="nbPlaying">
     <item quantity="one">%s en cours</item>
-    <item quantity="other">%s en cours</item>
+    <item quantity="other">%s parties en cours</item>
   </plurals>
   <string name="exportGames">Exporter les parties</string>
   <string name="ratingRange">Classement de vos adversaires</string>
@@ -451,10 +451,6 @@
   <string name="retryThisPuzzle">Réessayer ce problème</string>
   <string name="thisPuzzleIsCorrect">Ce problème est correct et intéressant</string>
   <string name="thisPuzzleIsWrong">Ce problème est erroné ou ennuyeux</string>
-  <plurals name="youHaveNbSecondsToMakeYourFirstMove">
-    <item quantity="one">Vous avez %s seconde pour jouer votre premier coup !</item>
-    <item quantity="other">Vous avez %s secondes pour jouer votre premier coup !</item>
-  </plurals>
   <plurals name="nbGamesInPlay">
     <item quantity="one">%s partie en cours</item>
     <item quantity="other">%s parties en cours</item>
@@ -742,7 +738,7 @@ en %3$s</string>
   <string name="backgroundImageUrl">URL de l\'image de fond :</string>
   <string name="boardGeometry">Forme de l\'échiquier</string>
   <string name="boardTheme">Thème de l\'échiquier</string>
-  <string name="boardSize">Taile de l\'échiquier</string>
+  <string name="boardSize">Taille de l\'échiquier</string>
   <string name="pieceSet">Jeu de pièces</string>
   <string name="embedInYourWebsite">Intégrer dans votre site web</string>
   <string name="usernameAlreadyUsed">Ce nom d\'utilisateur existe déjà. Merci d\'en choisir un autre.</string>
@@ -764,4 +760,5 @@ en %3$s</string>
   <string name="notifications">Notifications</string>
   <string name="challenges">Défis</string>
   <string name="perfRatingX">Classement : %s</string>
+  <string name="xSecondsToPlayTheFirstMove">%s secondes pour jouer le premier coup</string>
 </resources>

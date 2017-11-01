@@ -27,7 +27,7 @@
   <string name="raceFinished">Wyścig zakończony</string>
   <string name="variantEnding">Wariant zakończony</string>
   <string name="newOpponent">Nowy przeciwnik</string>
-  <string name="yourOpponentWantsToPlayANewGameWithYou">Twój przeciwnik chce zagrać z Tobą nową grę</string>
+  <string name="yourOpponentWantsToPlayANewGameWithYou">Twój przeciwnik chce zagrać z Tobą nową partię</string>
   <string name="joinTheGame">Dołącz do gry</string>
   <string name="whitePlays">Ruch białych</string>
   <string name="blackPlays">Ruch czarnych</string>
@@ -36,12 +36,12 @@
   <string name="forceResignation">Ogłoś wygraną</string>
   <string name="forceDraw">Ogłoś remis</string>
   <string name="talkInChat">Bądź miły na czacie</string>
-  <string name="theFirstPersonToComeOnThisUrlWillPlayWithYou">Pierwsza osoba, która użyje tego linku, dołączy do Twojej gry</string>
+  <string name="theFirstPersonToComeOnThisUrlWillPlayWithYou">Pierwsza osoba, która użyje tego linku, dołączy do Twojej partii.</string>
   <string name="whiteResigned">Białe zrezygnowały</string>
   <string name="blackResigned">Czarne zrezygnowały</string>
   <string name="whiteLeftTheGame">Białe opuściły grę</string>
   <string name="blackLeftTheGame">Czarne opuściły grę</string>
-  <string name="shareThisUrlToLetSpectatorsSeeTheGame">Podziel się tym linkiem, aby zaprosić innych do obserwowania tej gry</string>
+  <string name="shareThisUrlToLetSpectatorsSeeTheGame">Podziel się tym linkiem, aby zaprosić innych do obserwowania tej partii</string>
   <string name="theComputerAnalysisHasFailed">Nie udało się przeanalizować tej partii</string>
   <string name="viewTheComputerAnalysis">Zobacz analizę komputerową</string>
   <string name="requestAComputerAnalysis">Poproś o analizę komputerową</string>
@@ -74,9 +74,9 @@
   <string name="topGames">Najlepsze partie</string>
   <string name="masterDbExplanation">Dwa miliony partii zawodników FIDE (2200+) od 1952 do 2016 roku</string>
   <plurals name="mateInXHalfMoves">
-    <item quantity="one">Mat w %s posunięciu</item>
-    <item quantity="few">Mat w %s posunięciach</item>
-    <item quantity="other">Mat w %s posunięciach</item>
+    <item quantity="one">Mat w %s ruchu</item>
+    <item quantity="few">Mat w %s ruchach</item>
+    <item quantity="other">Mat w %s ruchach</item>
   </plurals>
   <plurals name="nextCaptureOrPawnMoveInXHalfMoves">
     <item quantity="one">Następne bicie lub ruch pionem w ciągu %s posunięcia (zerowanie licznika posunięć reguły 50 ruchów)</item>
@@ -202,7 +202,7 @@
   <string name="decline">Odrzuć</string>
   <string name="playingRightNow">W toku</string>
   <string name="finished">Zakończone</string>
-  <string name="abortGame">Przerwij grę</string>
+  <string name="abortGame">Przerwij partię</string>
   <string name="gameAborted">Gra została przerwana</string>
   <string name="standard">Standard</string>
   <string name="unlimited">Bez limitu</string>
@@ -343,7 +343,7 @@
   <string name="fromPosition">Z pozycji</string>
   <string name="continueFromHere">Kontynuuj z tej pozycji</string>
   <string name="importGame">Import partii</string>
-  <string name="importGameExplanation">Wklejając zapis gry będziesz miał możliwość jej odtworzenia, poproszenia o analizę komputerową, omówienia jej z innymi oraz udostępnienia linku do niej innym.</string>
+  <string name="importGameExplanation">Wklejając zapis partii będziesz miał możliwość jej odtworzenia, poproszenia o analizę komputerową, omówienia jej z innymi oraz udostępnienia linku do niej innym.</string>
   <plurals name="nbImportedGames">
     <item quantity="one">%s zaimportowana partia</item>
     <item quantity="few">%s zaimportowana partie</item>
@@ -353,7 +353,7 @@
   <string name="clickOnTheBoardToMakeYourMove">Wykonaj ruch i udowodnij, że jesteś człowiekiem.</string>
   <string name="captcha.fail">Rozwiąż szachowe zadanie.</string>
   <string name="notACheckmate">To nie jest mat</string>
-  <string name="colorPlaysCheckmateInOne">%s zaczynają i dają mata w jednym posunięciu</string>
+  <string name="colorPlaysCheckmateInOne">%s zaczynają i dają mata w jednym ruchu</string>
   <string name="retry">Spróbuj jeszcze raz</string>
   <string name="reconnecting">Ponowne łączenie</string>
   <string name="onlineFriends">znajomych online</string>
@@ -476,17 +476,12 @@
   <string name="retryThisPuzzle">Powtórz to zadanie</string>
   <string name="thisPuzzleIsCorrect">To poprawne i ciekawe zadanie</string>
   <string name="thisPuzzleIsWrong">To zadanie jest niepoprawne lub nudne</string>
-  <plurals name="youHaveNbSecondsToMakeYourFirstMove">
-    <item quantity="one">Masz %s sekundę na pierwszy ruch!</item>
-    <item quantity="few">Masz %s sekundy na pierwszy ruch!</item>
-    <item quantity="other">Masz %s sekund na pierwszy ruch!</item>
-  </plurals>
   <plurals name="nbGamesInPlay">
     <item quantity="one">%s partia w toku</item>
     <item quantity="few">%s partie w toku</item>
     <item quantity="other">%s partii w toku</item>
   </plurals>
-  <string name="automaticallyProceedToNextGameAfterMoving">Przejdź do następnej gry po wykonaniu ruchu</string>
+  <string name="automaticallyProceedToNextGameAfterMoving">Przejdź do następnej partii po wykonaniu ruchu</string>
   <string name="autoSwitch">Przełącz po ruchu</string>
   <string name="puzzles">Łamigłówki</string>
   <string name="latestUpdates">Aktualności</string>
@@ -623,7 +618,7 @@
   <string name="playOnline">Graj online</string>
   <string name="playOffline">Graj offline</string>
   <string name="allowAnalytics">Wysyłaj anonimowe statystyki</string>
-  <string name="shareGameURL">Udostępnij link do gry</string>
+  <string name="shareGameURL">Udostępnij link do partii</string>
   <string name="error.required">To pole jest wymagane</string>
   <string name="error.email">Podany adres email jest nieprawidłowy</string>
   <string name="error.email_acceptable">Podany adres email nie został zaakceptowany</string>
@@ -647,7 +642,7 @@
     <item quantity="other">%s postów na forum</item>
   </plurals>
   <string name="tpTimeSpentPlaying">Łączny czas gry: %s</string>
-  <string name="watchGames">Obserwuj gry</string>
+  <string name="watchGames">Obserwuj partie</string>
   <string name="tpTimeSpentOnTV">Czas w TV: %s</string>
   <string name="watch">Oglądaj</string>
   <string name="internationalEvents">Turnieje międzynarodowe</string>
@@ -670,7 +665,7 @@
   <string name="aboutSimulImage">Rok 1964 - Fischer grając na 50 szachownicach wygrał 47 partii, 2 zremisował i 1 przegrał.</string>
   <string name="aboutSimulRealLife">Pomysł został zaczerpnięty z rzeczywistych rozgrywek. Symultanista przemieszcza się pomiędzy szachownicami aby wykonać poszczególne posunięcia.</string>
   <string name="aboutSimulRules">Gdy symultana się rozpocznie, każdy gracz rozgrywa partię przeciwko symultaniście. Symultanista gra zawsze białymi. Symultana kończy się po zakończeniu wszystkich partii.</string>
-  <string name="aboutSimulSettings">Symultana to zawsze gra towarzyska. Podczas jej rozgrywania rewanż, cofanie posunięcia i dodawanie czasu nie są dostępne.</string>
+  <string name="aboutSimulSettings">Symultany są zawsze grami towarzyskimi. Rewanż, cofanie ruchów i dodawanie czasu nie są dostępne.</string>
   <string name="create">Stwórz</string>
   <string name="whenCreateSimul">Symultana pozwoli Ci zagrać z wieloma przeciwnikami równocześnie.</string>
   <string name="simulVariantsHint">Gdy zaznaczysz kilka wariantów gry, każdy przeciwnik będzie mógł wybrać, który wariant chce grać.</string>
@@ -795,4 +790,5 @@
   <string name="notifications">Powiadomienia</string>
   <string name="challenges">Wyzwania</string>
   <string name="perfRatingX">Ranking: %s</string>
+  <string name="xSecondsToPlayTheFirstMove">%s sekund na wykonanie pierwszego ruchu</string>
 </resources>

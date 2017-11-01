@@ -1,17 +1,11 @@
 package lila.relay
 
-import scala.concurrent.duration._
-
 import akka.actor._
-import akka.pattern.ask
-import play.api.libs.json._
 
-import lila.chat.Chat
 import lila.socket.Socket.Uid
 import lila.socket.{ Handler, JsSocketHandler }
 import lila.study.{ Study, Socket, SocketHandler => StudyHandler }
 import lila.user.User
-import makeTimeout.short
 
 private[relay] final class SocketHandler(
     studyHandler: StudyHandler,
@@ -25,9 +19,9 @@ private[relay] final class SocketHandler(
     member: Socket.Member,
     user: Option[User]
   ): Handler.Controller = ({
-    case ("relaySync", o) => user foreach { u =>
-      api.setSync(relayId, u, ~(o \ "d").asOpt[Boolean])
-    }
+    case ("relaySync", o) =>
+      logger.info(s"${user.fold("Anon")(_.username)} toggles #${relayId}")
+      api.requestPlay(relayId, ~(o \ "d").asOpt[Boolean])
   }: Handler.Controller) orElse studyHandler.makeController(
     socket = socket,
     studyId = Study.Id(relayId.value),

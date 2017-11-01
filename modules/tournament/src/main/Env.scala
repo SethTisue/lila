@@ -143,7 +143,7 @@ final class Env(
 
   system.lilaBus.subscribe(
     system.actorOf(Props(new ApiActor(api = api)), name = ApiActorName),
-    'finishGame, 'adjustCheater, 'adjustBooster
+    'finishGame, 'adjustCheater, 'adjustBooster, 'playban
   )
 
   system.actorOf(Props(new CreatedOrganizer(
@@ -174,11 +174,7 @@ final class Env(
     }
   }
 
-  private lazy val autoPairing = new AutoPairing(
-    roundMap = roundMap,
-    system = system,
-    onStart = onStart
-  )
+  private lazy val autoPairing = new AutoPairing(onStart)
 
   private[tournament] lazy val tournamentColl = db(CollectionTournament)
   private[tournament] lazy val pairingColl = db(CollectionPairing)

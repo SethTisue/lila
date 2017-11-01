@@ -1,7 +1,5 @@
 package lila.round
 
-import scala.concurrent.duration._
-
 import chess.{ Status, Color }
 
 import lila.game.actorApi.{ FinishGame, AbortedBy }
@@ -21,7 +19,7 @@ private[round] final class Finisher(
     getSocketStatus: Game.ID => Fu[actorApi.SocketStatus]
 ) {
 
-  def abort(pov: Pov)(implicit proxy: GameProxy): Fu[Events] = apply(pov.game, _.Aborted) >>- {
+  def abort(pov: Pov)(implicit proxy: GameProxy): Fu[Events] = apply(pov.game, _.Aborted, None) >>- {
     getSocketStatus(pov.gameId) foreach { ss =>
       playban.abort(pov, ss.colorsOnGame)
     }
@@ -42,14 +40,22 @@ private[round] final class Finisher(
         game.toChess.board.variant.insufficientWinningMaterial(game.toChess.situation.board, color)
       }
       apply(game, _.Outoftime, winner) >>-
-        winner.?? { color => playban.sittingOrGood(game, !color) }
+        winner.?? { w => playban.flag(game, !w) }
     }
   }
+
+  def noStart(game: Game)(implicit proxy: GameProxy): Fu[Events] =
+    game.playerWhoDidNotMove ?? { culprit =>
+      lila.mon.round.expiration.count()
+      playban.noStart(Pov(game, culprit))
+      if (game.isMandatory) apply(game, _.NoStart, Some(!culprit.color))
+      else apply(game, _.Aborted, None, Some(_.untranslated("Game aborted by server")))
+    }
 
   def other(
     game: Game,
     status: Status.type => Status,
-    winner: Option[Color] = None,
+    winner: Option[Color],
     message: Option[SelectI18nKey] = None
   )(implicit proxy: GameProxy): Fu[Events] =
     apply(game, status, winner, message) >>- playban.other(game, status, winner)

@@ -1,7 +1,6 @@
 package lila.study
 
 import chess.format.pgn.Tags
-import org.joda.time.DateTime
 import reactivemongo.api.ReadPreference
 
 import lila.db.dsl._
@@ -9,8 +8,6 @@ import lila.db.dsl._
 final class ChapterRepo(coll: Coll) {
 
   import BSONHandlers._
-
-  val maxChapters = 64
 
   val noRootProjection = $doc("root" -> false)
 
@@ -34,22 +31,23 @@ final class ChapterRepo(coll: Coll) {
     coll.find(
       $studyId(studyId),
       noRootProjection
-    ).sort($sort asc "order").list[Chapter.Metadata](maxChapters)
+    ).sort($sort asc "order").list[Chapter.Metadata]()
 
   // loads all study chapters in memory! only used for search indexing and cloning
   def orderedByStudy(studyId: Study.Id): Fu[List[Chapter]] =
     coll.find($studyId(studyId))
       .sort($sort asc "order")
       .cursor[Chapter](readPreference = ReadPreference.secondaryPreferred)
-      .gather[List](maxChapters)
+      .gather[List]()
 
-  def relaysAndTagsByStudyId(studyId: Study.Id): Fu[List[(Chapter.Relay, Tags)]] =
+  def relaysAndTagsByStudyId(studyId: Study.Id): Fu[List[Chapter.RelayAndTags]] =
     coll.find($doc("studyId" -> studyId), $doc("relay" -> true, "tags" -> true)).list[Bdoc]() map { docs =>
       for {
         doc <- docs
+        id <- doc.getAs[Chapter.Id]("_id")
         relay <- doc.getAs[Chapter.Relay]("relay")
         tags <- doc.getAs[Tags]("tags")
-      } yield (relay, tags)
+      } yield Chapter.RelayAndTags(id, relay, tags)
     }
 
   def sort(study: Study, ids: List[Chapter.Id]): Funit = ids.zipWithIndex.map {

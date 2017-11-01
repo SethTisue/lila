@@ -12,7 +12,7 @@ import reactivemongo.bson.BSONBinary
 import lila.db.BSON.BSONJodaDateTimeHandler
 import lila.db.ByteArray
 import lila.db.dsl._
-import lila.user.{ User, UidNb }
+import lila.user.User
 
 object GameRepo {
 
@@ -198,10 +198,10 @@ object GameRepo {
     .cursor[Game]()
     .gather[List](nb)
 
-  def setAnalysed(id: ID) {
+  def setAnalysed(id: ID): Unit = {
     coll.updateFieldUnchecked($id(id), F.analysed, true)
   }
-  def setUnanalysed(id: ID) {
+  def setUnanalysed(id: ID): Unit = {
     coll.updateFieldUnchecked($id(id), F.analysed, false)
   }
 

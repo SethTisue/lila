@@ -16,6 +16,8 @@ interface Lichess {
   raf(f: () => void): void
   requestIdleCallback(f: () => void): void
   loadCss(path: string): void
+  unloadCss(path: string): void
+  loadedCss: [string];
   escapeHtml(html: string): string
   toYouTubeEmbedUrl(url: string): string
 
@@ -34,7 +36,6 @@ interface Lichess {
   ab: any;
   challengeApp: any;
   hopscotch: any;
-  openInMobileApp(gameId: string): void;
   makeChat(id: string, data: any, callback?: (chat: any) => void): void;
   topMenuIntent(): void;
   timeago: {
@@ -193,6 +194,15 @@ declare namespace Tree {
     threefold?: boolean;
     fail?: boolean;
     puzzle?: string;
+    crazy?: NodeCrazy;
+  }
+
+  export interface NodeCrazy {
+    pockets: [CrazyPocket, CrazyPocket];
+  }
+
+  export interface CrazyPocket {
+    [role: string]: number;
   }
 
   export interface Comment {

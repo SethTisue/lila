@@ -5,8 +5,8 @@
   <string name="byPlaying">用玩的方式！</string>
   <string name="menu">菜单</string>
   <string name="progressX">进度：%s</string>
-  <string name="resetMyProgress">重置我的进步</string>
-  <string name="youWillLoseAllYourProgress">您将失去全部进度！</string>
+  <string name="resetMyProgress">重置我的进度</string>
+  <string name="youWillLoseAllYourProgress">请注意: 您的进度将被清空！</string>
   <string name="play">玩吧！</string>
   <string name="chessPieces">棋子</string>
   <string name="theRook">车</string>
@@ -33,7 +33,7 @@
   <string name="lastOne">最后一关！</string>
   <string name="kingComplete">您会掌控统帅者了！</string>
   <string name="theKnight">马</string>
-  <string name="itMovesInAnLShape">它以L字形方式移动。</string>
+  <string name="itMovesInAnLShape">它以L字形方式移动</string>
   <string name="knightIntro">给您一个挑战。马是……棘手的棋子。</string>
   <string name="knightsHaveAFancyWay">马以华丽的方式四处跳动！</string>
   <string name="knightsCanJumpOverObstacles">马能跳过障碍！逃脱并征服星星们！</string>
@@ -147,8 +147,8 @@
 象=3
 马=3
 兵=1</string>
-  <string name="checkInTwo">二步杀</string>
-  <string name="twoMovesToGiveCheck">二步将</string>
+  <string name="checkInTwo">二步将</string>
+  <string name="twoMovesToGiveCheck">走两步棋并将军对方</string>
   <string name="checkInTwoIntro">请找到正确的两步棋对敌王将军。</string>
   <string name="checkInTwoGoal">二步将</string>
   <string name="checkInTwoComplete">恭喜！您成功地将对手将军，迫使对方保护王。</string>
@@ -179,7 +179,7 @@
   <string name="nailedIt">正确！</string>
   <string name="rightOn">好极了！</string>
   <string name="stageXComplete">阶段%s完成</string>
-  <string name="yourScore">呢的分</string>
+  <string name="yourScore">您的分数</string>
   <string name="next">下一个</string>
   <string name="backToMenu">返回菜单</string>
   <string name="puzzleFailed">解题失败!</string>

@@ -11,14 +11,27 @@ final class Env(
     system: ActorSystem
 ) {
 
-  private val relayColl = db(config getString "collection.relay")
+  private val MaxPerPage = config getInt "paginator.max_per_page"
+
+  private val coll = db(config getString "collection.relay")
 
   lazy val forms = RelayForm
 
+  private val repo = new RelayRepo(coll)
+
+  private val withStudy = new RelayWithStudy(studyEnv.api)
+
   val api = new RelayApi(
-    coll = relayColl,
+    repo = repo,
     studyApi = studyEnv.api,
+    withStudy = withStudy,
     system = system
+  )
+
+  lazy val pager = new RelayPager(
+    repo = repo,
+    withStudy = withStudy,
+    maxPerPage = lila.common.MaxPerPage(MaxPerPage)
   )
 
   private val sync = new RelaySync(
@@ -37,8 +50,11 @@ final class Env(
     chapterRepo = studyEnv.chapterRepo
   )))
 
+  system.scheduler.schedule(1 minute, 1 minute) {
+    api.autoStart >> api.autoFinishNotSyncing
+  }
+
   system.lilaBus.subscribe(system.actorOf(Props(new Actor {
-    import lila.study.actorApi._
     def receive = {
       case lila.study.actorApi.StudyLikes(id, likes) => api.setLikes(Relay.Id(id.value), likes)
       case lila.hub.actorApi.study.RemoveStudy(studyId, _) => api.onStudyRemove(studyId)

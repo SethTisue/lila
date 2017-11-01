@@ -161,7 +161,8 @@ object mon {
       }
       object lag {
         val avgReported = rec("round.move.lag.avg_reported")
-        val estimateError = rec("round.move.lag.estimate_error")
+        private val estErrorRec = rec("round.move.lag.estimate_error_1000")
+        def estimateError(e: Int) = estErrorRec(e + 1000)
         val compDeviation = rec("round.move.lag.comp_deviation")
         def uncomped(key: String) = rec(s"round.move.lag.uncomped.$key")
         val uncompedAll = rec(s"round.move.lag.uncomped.all")
@@ -181,6 +182,16 @@ object mon {
     object alarm {
       val time = rec("round.alarm.time")
       val count = rec("round.alarm.count")
+    }
+    object expiration {
+      val count = inc("round.expiration.count")
+    }
+  }
+  object playban {
+    def outcome(out: String) = inc(s"playban.outcome.$out")
+    object ban {
+      val count = inc("playban.ban.count")
+      val mins = incX("playban.ban.mins")
     }
   }
   object explorer {
@@ -232,11 +243,10 @@ object mon {
       val mobile = inc("user.register.mobile")
       def mustConfirmEmail(v: Boolean) = inc(s"user.register.must_confirm_email.$v")
       def confirmEmailResult(v: Boolean) = inc(s"user.register.confirm_email.$v")
+      val modConfirmEmail = inc(s"user.register.mod_confirm_email")
     }
     object auth {
-      val shaBcUpgrade = inc("user.auth.sha_bc_upgrade")
       val bcFullMigrate = inc("user.auth.bc_full_migrate")
-      val shaLogin = inc("user.auth.sha_login")
       val hashTime = rec("user.auth.hash_time")
       val hashTimeInc = incX("user.auth.hash_time_inc")
       def result(v: Boolean) = inc(s"user.auth.result.$v")
@@ -249,15 +259,39 @@ object mon {
     val member = rec("socket.count")
     val open = inc("socket.open")
     val close = inc("socket.close")
+    def eject(userId: String) = inc(s"socket.eject.user.$userId")
+    val ejectAll = inc(s"socket.eject.all")
   }
   object mod {
     object report {
       val unprocessed = rec("mod.report.unprocessed")
       val close = inc("mod.report.close")
       def create(reason: String) = inc(s"mod.report.create.$reason")
+      def discard(reason: String) = inc(s"mod.report.discard.$reason")
     }
     object log {
       val create = inc("mod.log.create")
+    }
+    object irwin {
+      // val discard = inc(s"mod.report.irwin.discard")
+      val report = inc(s"mod.report.irwin.report")
+      val mark = inc(s"mod.report.irwin.mark")
+    }
+  }
+  object relay {
+    val ongoing = rec("relay.ongoing")
+    val moves = incX("relay.moves")
+    object sync {
+      def result(res: String) = inc(s"relay.sync.result.$res")
+      object duration {
+        val each = rec("relay.sync.duration.each")
+        val total = rec("relay.sync.duration.total")
+      }
+    }
+    object fetch {
+      object duration {
+        val each = rec("relay.sync.duration.each")
+      }
     }
   }
   object cheat {
@@ -541,6 +575,7 @@ object mon {
       else hist.record(value)
     }
   }
+
   // to record Double rates [0..1],
   // we multiply by 100,000 and convert to Int [0..100000]
   private def rate(name: String): Rate = {

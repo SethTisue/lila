@@ -1,5 +1,7 @@
 @(data: play.api.libs.json.JsObject, userTimeline: Vector[lila.timeline.Entry], forumRecent: List[lila.forum.MiniForumPost], tours: List[Tournament], events: List[lila.event.Event], simuls: List[lila.simul.Simul], featured: Option[Game], leaderboard: List[User.LightPerf], tournamentWinners: List[lila.tournament.Winner], puzzle: Option[lila.puzzle.DailyPuzzle], streams: List[lila.tv.StreamOnAir], lastPost: List[lila.blog.MiniPost], playban: Option[lila.playban.TempBan], currentGame: Option[lila.app.mashup.Preload.CurrentGame], nbRounds: Int)(implicit ctx: Context)
 
+@import play.api.libs.json.Json
+
 @underchat = {
 <div id="featured_game">
   @featured.map { g =>
@@ -57,12 +59,12 @@
 @embedJs {
 window.customWS = true;
 lichess_lobby = {
-data: @Html(J.stringify(data)),
+data: @safeJson(data),
 playban: @playban.fold(Html("null")){ pb =>
-@Html(J.stringify(J.obj("minutes" -> pb.mins, "remainingSeconds" -> (pb.remainingSeconds + 3))))
+@safeJson(Json.obj("minutes" -> pb.mins, "remainingSeconds" -> (pb.remainingSeconds + 3)))
 },
 currentGame: @currentGame.fold(Html("null")) { cg =>
-@Html(J.stringify(cg.json))
+@safeJson(cg.json)
 },
 i18n: @jsI18n()
 };
@@ -88,7 +90,7 @@ asyncJs = true) {
 <div class="lobby_and_ground@if(playban.isDefined){ playban}@if(currentGame.isDefined){ current_game}">
   @currentGame.map(currentGameInfo(_))
   <div id="hooks_wrap"></div>
-  @playban.map(playbanInfo(_))
+  @playban.map(ban => playbanInfo(ban.remainingSeconds))
   <div id="start_buttons" class="lichess_ground">
     <a class="fat button config_hook hint--bottom@if(playban.isDefined || currentGame.isDefined){ disabled}" href="@routes.Setup.hookForm" onclick="return false">@trans.createAGame()</a>
     <a class="fat button config_friend hint--bottom@if(currentGame.isDefined){ disabled}" href="@routes.Setup.friendForm(none)" onclick="return false">@trans.playWithAFriend()</a>
@@ -136,7 +138,7 @@ asyncJs = true) {
             <tr>
               <td>@lightUserLink(l.user)</td>
               @lila.rating.PerfType(l.perfKey).map { pt =>
-              <td data-icon="@pt.iconChar">@l.rating</td>
+              <td data-icon="@pt.iconChar" class="text">@l.rating</td>
               }
               <td>@showProgress(l.progress, withTitle = false)</td>
             </tr>

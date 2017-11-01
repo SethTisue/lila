@@ -21,12 +21,16 @@ final class Env(
   lazy val forms = new DataForm(hub.actor.captcher)
 
   private lazy val autoAnalysis = new AutoAnalysis(
-    fishnet = hub.actor.fishnet
+    fishnet = hub.actor.fishnet,
+    system = system
   )
+
+  private lazy val discarder = new ReportDiscarder
 
   lazy val api = new ReportApi(
     reportColl,
     autoAnalysis,
+    discarder = discarder,
     noteApi,
     securityApi,
     isOnline,

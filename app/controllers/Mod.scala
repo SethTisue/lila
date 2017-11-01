@@ -4,13 +4,12 @@ import lila.api.Context
 import lila.app._
 import lila.chat.Chat
 import lila.common.{ IpAddress, EmailAddress }
-import lila.report.{ Room, Suspect, Mod => AsMod }
+import lila.report.{ Suspect, Mod => AsMod }
 import lila.user.{ UserRepo, User => UserModel }
 import views._
 
 import play.api.data._
 import play.api.data.Forms._
-import play.api.libs.json._
 import play.api.mvc._
 import scala.concurrent.duration._
 
@@ -25,16 +24,13 @@ object Mod extends LilaController {
       for {
         inquiry <- Env.report.api.inquiries ofModId me.id
         _ <- modApi.setEngine(AsMod(me), sus, v)
-        res <- Report.onInquiryClose(inquiry, me)
+        res <- Report.onInquiryClose(inquiry, me, sus.some)
       } yield res
     }
   }
 
   def publicChat = Secure(_.ChatTimeout) { implicit ctx => _ =>
-    val tourChats = Env.mod.publicChat.tournamentChats
-    val simulChats = Env.mod.publicChat.simulChats
-
-    tourChats zip simulChats map {
+    Env.mod.publicChat.all map {
       case (tournamentsAndChats, simulsAndChats) =>
         Ok(html.mod.publicChat(tournamentsAndChats, simulsAndChats))
     }
@@ -50,21 +46,21 @@ object Mod extends LilaController {
     withSuspect(username) { prev =>
       for {
         inquiry <- Env.report.api.inquiries ofModId me.id
-        _ <- modApi.setTroll(AsMod(me), prev, v)
-        res <- Report.onInquiryClose(inquiry, me)
+        suspect <- modApi.setTroll(AsMod(me), prev, v)
+        res <- Report.onInquiryClose(inquiry, me, suspect.some)
       } yield res
     }
   }
 
   def warn(username: String, subject: String) = SecureBody(_.ModMessage) { implicit ctx => me =>
     lila.message.ModPreset.bySubject(subject).fold(notFound) { preset =>
-      withSuspect(username) { sus =>
+      withSuspect(username) { prev =>
         for {
           inquiry <- Env.report.api.inquiries ofModId me.id
-          _ <- modApi.setTroll(AsMod(me), sus, sus.user.troll)
-          thread <- Env.message.api.sendPreset(me, sus.user, preset)
+          suspect <- modApi.setTroll(AsMod(me), prev, prev.user.troll)
+          thread <- Env.message.api.sendPreset(me, suspect.user, preset)
           _ <- Env.mod.logApi.modMessage(thread.creatorId, thread.invitedId, thread.name)
-          res <- Report.onInquiryClose(inquiry, me)
+          res <- Report.onInquiryClose(inquiry, me, suspect.some)
         } yield res
       }
     }
@@ -76,8 +72,11 @@ object Mod extends LilaController {
     } inject redirect(username)
   }
 
-  def ipban(ip: String) = Secure(_.IpBan) { implicit ctx => me =>
-    modApi.ipban(me.id, ip)
+  def deletePmsAndChats(username: String) = Secure(_.MarkTroll) { implicit ctx => me =>
+    withSuspect(username) { sus =>
+      Env.mod.publicChat.delete(sus) >>
+        Env.message.api.deleteThreadsBy(sus.user)
+    } inject redirect(username)
   }
 
   def closeAccount(username: String) = Secure(_.CloseAccount) { implicit ctx => me =>
@@ -220,7 +219,7 @@ object Mod extends LilaController {
 
   def spontaneousInquiry(username: String) = Secure(_.SeeReport) { implicit ctx => me =>
     OptionFuResult(UserRepo named username) { user =>
-      Env.report.api.inquiries.spontaneous(AsMod(me), Suspect(user)) inject Redirect(routes.User.show(user.username) + "?mod")
+      Env.report.api.inquiries.spontaneous(AsMod(me), Suspect(user)) inject redirect(user.username, true)
     }
   }
 
@@ -283,7 +282,10 @@ object Mod extends LilaController {
         val email = query.headOption.map(EmailAddress.apply) flatMap Env.security.emailAddressValidator.validate
         val username = query lift 1
         def tryWith(setEmail: EmailAddress, q: String): Fu[Option[Result]] = Env.mod.search(q) flatMap {
-          case List(user) => (!user.everLoggedIn ?? modApi.setEmail(me.id, user.id, setEmail)) >>
+          case List(user) => (!user.everLoggedIn).?? {
+            lila.mon.user.register.modConfirmEmail()
+            modApi.setEmail(me.id, user.id, setEmail)
+          } >>
             UserRepo.email(user.id) map { email =>
               Ok(html.mod.emailConfirm("", user.some, email)).some
             }
@@ -295,6 +297,18 @@ object Mod extends LilaController {
           }
         } getOrElse BadRequest(html.mod.emailConfirm(rawQuery, none, none)).fuccess
     }
+  }
+
+  def chatPanic = Secure(_.MarkTroll) { implicit ctx => me =>
+    Ok(html.mod.chatPanic(Env.chat.panic.get)).fuccess
+  }
+
+  def chatPanicPost = SecureBody(_.MarkTroll) { implicit ctx => me =>
+    implicit val req = ctx.body
+    val v = getBool("v")
+    Env.chat.panic.set(v)
+    Env.slack.api.chatPanic(me, v)
+    Redirect(routes.Mod.chatPanic).fuccess
   }
 
   private def withSuspect(username: String)(f: Suspect => Fu[Result])(implicit ctx: Context) =

@@ -1,10 +1,8 @@
 package controllers
 
 import ornicar.scalalib.Zero
-import play.api.i18n.Messages.Implicits._
 import play.api.libs.json._
 import play.api.mvc._
-import play.api.Play.current
 import scala.concurrent.duration._
 
 import lila.api.Context
@@ -241,8 +239,13 @@ object Auth extends LilaController {
 
   private def redirectNewUser(user: UserModel)(implicit ctx: Context) = {
     implicit val req = ctx.req
-    api.saveAuthentication(user.id, ctx.mobileApiVersion) map { sessionId =>
-      Redirect(routes.User.show(user.username)) withCookies LilaCookie.session("sessionId", sessionId)
+    api.saveAuthentication(user.id, ctx.mobileApiVersion) flatMap { sessionId =>
+      negotiate(
+        html = Redirect(routes.User.show(user.username)).fuccess,
+        api = _ => mobileUserOk(user)
+      ) map {
+        _ withCookies LilaCookie.session("sessionId", sessionId)
+      }
     } recoverWith authRecovery
   }
 

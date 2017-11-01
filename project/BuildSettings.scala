@@ -1,5 +1,7 @@
+import com.typesafe.sbt.SbtScalariform.autoImport.scalariformPreferences
 import play.sbt.Play.autoImport._
 import sbt._, Keys._
+import scalariform.formatter.preferences._
 
 object BuildSettings {
 
@@ -11,14 +13,15 @@ object BuildSettings {
     organization := "org.lichess",
     scalaVersion := globalScalaVersion,
     resolvers ++= Dependencies.Resolvers.commons,
-    scalacOptions := compilerOptions,
+    scalacOptions ++= compilerOptions,
     incOptions := incOptions.value.withNameHashing(true),
     updateOptions := updateOptions.value.withCachedResolution(true),
     sources in doc in Compile := List(),
     // disable publishing the main API jar
     publishArtifact in (Compile, packageDoc) := false,
     // disable publishing the main sources jar
-    publishArtifact in (Compile, packageSrc) := false
+    publishArtifact in (Compile, packageSrc) := false,
+    scalariformPreferences := scalariformPrefs(scalariformPreferences.value)
   )
 
   def fortifySettings = Seq(
@@ -38,6 +41,10 @@ object BuildSettings {
     scalacOptions += s"-P:fortify:build=lila"
   )
 
+  def scalariformPrefs(prefs: IFormattingPreferences) = prefs
+    .setPreference(DanglingCloseParenthesis, Force)
+    .setPreference(DoubleIndentConstructorArguments, true)
+
   def defaultDeps = Seq(scalaz, chess, scalalib, jodaTime, ws, java8compat, specs2)
 
   def compile(deps: ModuleID*): Seq[ModuleID] = deps map (_ % "compile")
@@ -51,7 +58,7 @@ object BuildSettings {
       .dependsOn(deps: _*)
       .settings(
         version := "2.0",
-        libraryDependencies := defaultDeps,
+        libraryDependencies ++= defaultDeps,
         buildSettings,
         fortifySettings,
         srcMain
@@ -64,6 +71,7 @@ object BuildSettings {
     // "-Ywarn-unused-import",
     // "-Ywarn-unused",
     // "-Xlint:missing-interpolator",
+    // "-Ywarn-unused-import",
     "-Ybackend:GenBCode", "-Ydelambdafy:method", "-target:jvm-1.8"
   )
 

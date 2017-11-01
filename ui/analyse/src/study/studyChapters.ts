@@ -5,7 +5,7 @@ import { bind, dataIcon } from '../util';
 import { ctrl as chapterNewForm } from './chapterNewForm';
 import { ctrl as chapterEditForm } from './chapterEditForm';
 import AnalyseCtrl from '../ctrl';
-import { StudyCtrl, StudyChapterMeta, LocalPaths } from './interfaces';
+import { StudyCtrl, StudyChapterMeta, LocalPaths, StudyChapter, TagArray } from './interfaces';
 
 export function ctrl(initChapters: StudyChapterMeta[], send: SocketSend, setTab: () => void, chapterConfig, root: AnalyseCtrl) {
 
@@ -40,6 +40,25 @@ export function ctrl(initChapters: StudyChapterMeta[], send: SocketSend, setTab:
     },
     localPaths
   };
+}
+
+export function isFinished(c: StudyChapter) {
+  const result = findTag(c.tags, 'result');
+  return result && result !== '*';
+}
+
+export function findTag(tags: TagArray[], name: string): string | undefined {
+  const t = tags.find(t => t[0].toLowerCase() === name);
+  return t && t[1];
+}
+
+export function resultOf(tags: TagArray[], isWhite: boolean): string | undefined {
+  switch(findTag(tags, 'result')) {
+    case '1-0': return isWhite ? '1' : '0';
+    case '0-1': return isWhite ? '0' : '1';
+    case '1/2-1/2': return '1/2';
+    default: return;
+  }
 }
 
 export function view(ctrl: StudyCtrl): VNode {

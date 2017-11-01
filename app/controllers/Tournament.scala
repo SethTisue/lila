@@ -6,11 +6,11 @@ import scala.concurrent.duration._
 
 import lila.api.Context
 import lila.app._
+import lila.chat.Chat
 import lila.common.HTTPRequest
 import lila.game.{ Pov, GameRepo }
 import lila.tournament.{ System, TournamentRepo, PairingRepo, VisibleTournaments, Tournament => Tour }
 import lila.user.{ User => UserModel }
-import lila.chat.Chat
 import views._
 
 object Tournament extends LilaController {
@@ -72,17 +72,11 @@ object Tournament extends LilaController {
     } yield Ok(html.tournament.leaderboard(winners))
   }
 
-  private def canHaveChat(tour: Tour)(implicit ctx: Context): Boolean = ctx.me ?? { u =>
+  private[controllers] def canHaveChat(tour: Tour)(implicit ctx: Context): Boolean = ctx.me ?? { u =>
     if (ctx.kid) false
     else if (tour.isPrivate) true
-    else canHaveChat(tour.variant, u)
+    else Env.chat.panic allowed u
   }
-
-  protected[controllers] def canHaveChat(variant: chess.variant.Variant, u: UserModel): Boolean =
-    variant match {
-      case chess.variant.Antichess => u.count.game > 10 && u.createdSinceDays(3)
-      case _ => true
-    }
 
   def show(id: String) = Open { implicit ctx =>
     val page = getInt("page")
@@ -150,21 +144,23 @@ object Tournament extends LilaController {
 
   def join(id: String) = AuthBody(BodyParsers.parse.json) { implicit ctx => implicit me =>
     NoLame {
-      val password = ctx.body.body.\("p").asOpt[String]
-      negotiate(
-        html = repo enterableById id map {
-          case None => tournamentNotFound
-          case Some(tour) =>
-            env.api.join(tour.id, me, password)
-            Redirect(routes.Tournament.show(tour.id))
-        },
-        api = _ => OptionFuResult(repo enterableById id) { tour =>
-          env.api.joinWithResult(tour.id, me, password) map { result =>
-            if (result) Ok(jsonOkBody)
-            else BadRequest(Json.obj("joined" -> false))
+      NoPlayban {
+        val password = ctx.body.body.\("p").asOpt[String]
+        negotiate(
+          html = repo enterableById id map {
+            case None => tournamentNotFound
+            case Some(tour) =>
+              env.api.join(tour.id, me, password)
+              Redirect(routes.Tournament.show(tour.id))
+          },
+          api = _ => OptionFuResult(repo enterableById id) { tour =>
+            env.api.joinWithResult(tour.id, me, password) map { result =>
+              if (result) Ok(jsonOkBody)
+              else BadRequest(Json.obj("joined" -> false))
+            }
           }
-        }
-      )
+        )
+      }
     }
   }
 
@@ -192,8 +188,6 @@ object Tournament extends LilaController {
 
   def create = AuthBody { implicit ctx => implicit me =>
     NoLame {
-      import play.api.i18n.Messages.Implicits._
-      import play.api.Play.current
       implicit val req = ctx.body
       negotiate(
         html = env.forms(me).bindFromRequest.fold(

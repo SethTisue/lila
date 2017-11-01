@@ -4,15 +4,13 @@ import chess.format.Forsyth
 import chess.format.Forsyth.SituationPlus
 import chess.Situation
 import chess.variant.{ Variant, Standard, FromPosition }
-import play.api.i18n.Messages.Implicits._
 import play.api.libs.json.Json
 import play.api.mvc._
 import scala.concurrent.duration._
 
 import lila.api.Context
 import lila.app._
-import lila.common.PimpedJson._
-import lila.game.{ GameRepo, Pov, PgnDump }
+import lila.game.{ GameRepo, Pov }
 import lila.i18n.I18nKeys
 import lila.round.Forecast.{ forecastStepJsonFormat, forecastJsonWriter }
 import lila.round.JsonView.WithFlags
@@ -43,22 +41,6 @@ object UserAnalysis extends LilaController with TheftPrevention {
     }
   }
 
-  private lazy val keyboardI18nKeys = {
-    Seq(
-      I18nKeys.keyboardShortcuts,
-      I18nKeys.keyMoveBackwardOrForward,
-      I18nKeys.keyGoToStartOrEnd,
-      I18nKeys.keyShowOrHideComments,
-      I18nKeys.keyEnterOrExitVariation,
-      I18nKeys.youCanAlsoScrollOverTheBoardToMoveInTheGame,
-      I18nKeys.analysisShapesHowTo
-    )
-  }
-
-  def keyboardI18n = Open { implicit ctx =>
-    JsonOk(fuccess(lila.i18n.JsDump.keysToObject(keyboardI18nKeys, lila.i18n.I18nDb.Site, lang)))
-  }
-
   private[controllers] def makePov(fen: Option[String], variant: Variant): Pov = makePov {
     fen.filter(_.nonEmpty).flatMap {
       Forsyth.<<<@(variant, _)
@@ -84,28 +66,24 @@ object UserAnalysis extends LilaController with TheftPrevention {
   def game(id: String, color: String) = Open { implicit ctx =>
     OptionFuResult(GameRepo game id) { game =>
       val pov = Pov(game, chess.Color(color == "white"))
-      if (game.finished) negotiate(
-        html = fuccess(Redirect(routes.Round.watcher(game.id, color))),
+      negotiate(
+        html =
+          if (game.replayable) Redirect(routes.Round.watcher(game.id, color)).fuccess
+          else for {
+            initialFen <- GameRepo initialFen game.id
+            data <- Env.api.roundApi.userAnalysisJson(pov, ctx.pref, initialFen, pov.color, owner = isMyPov(pov), me = ctx.me)
+          } yield NoCache(Ok(html.board.userAnalysis(data, pov))),
         api = apiVersion => mobileAnalysis(pov, apiVersion)
       )
-      else GameRepo initialFen game.id flatMap { initialFen =>
-        Env.api.roundApi.userAnalysisJson(pov, ctx.pref, initialFen, pov.color, owner = isMyPov(pov), me = ctx.me) flatMap { data =>
-          negotiate(
-            html = Ok(html.board.userAnalysis(data, pov)).fuccess,
-            api = _ => Ok(data).fuccess
-          )
-        }
-      } map NoCache
     }
   }
 
   private def mobileAnalysis(pov: Pov, apiVersion: lila.common.ApiVersion)(implicit ctx: Context): Fu[Result] =
     GameRepo initialFen pov.game.id flatMap { initialFen =>
       Game.preloadUsers(pov.game) zip
-        (Env.analyse.analyser get pov.game.id) zip
+        (Env.analyse.analyser get pov.game) zip
         Env.game.crosstableApi.withMatchup(pov.game) zip
         Env.bookmark.api.exists(pov.game, ctx.me) flatMap {
-          // case _ ~ analysis ~ analysisInProgress ~ simul ~ chat ~ crosstable ~ bookmarked ~ pgn =>
           case _ ~ analysis ~ crosstable ~ bookmarked =>
             import lila.game.JsonView.crosstableWithMatchupWrites
             Env.api.roundApi.review(pov, apiVersion,
@@ -175,5 +153,9 @@ object UserAnalysis extends LilaController with TheftPrevention {
         )
       }
     }
+  }
+
+  def help = Open { implicit ctx =>
+    Ok(html.analyse.help(getBool("study"))).fuccess
   }
 }

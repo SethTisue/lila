@@ -1,14 +1,13 @@
 package controllers
 
 import play.api.libs.json._
-import play.api.mvc._
 
 import lila.api.Context
 import lila.app._
 import lila.practice.JsonView._
 import lila.practice.{ UserStudy, PracticeSection, PracticeStudy }
 import lila.study.Study.WithChapter
-import lila.study.{ Chapter, Order, Study => StudyModel }
+import lila.study.{ Chapter, Study => StudyModel }
 import lila.tree.Node.partitionTreeJsonWriter
 import views._
 
@@ -105,7 +104,7 @@ object Practice extends LilaController {
       FormFuResult(form) { err =>
         env.api.structure.get map { html.practice.config(_, err) }
       } { text =>
-        env.api.config.set(text).valueOr(_ => funit) >>-
+        ~env.api.config.set(text).right.toOption >>-
           env.api.structure.clear >>
           Env.mod.logApi.practiceConfig(me.id) inject Redirect(routes.Practice.config)
       }

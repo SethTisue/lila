@@ -6,19 +6,21 @@ import play.api.data.Forms._
 import play.api.data.validation.Constraints._
 
 import lila.user.User
+import lila.security.Granter
 
 object RelayForm {
 
   import lila.common.Form.UTCDate._
 
   val syncTypes = List(
-    "dgt-one" -> "DGT (old): all games in a single file",
+    "dgt-one" -> "DGT (traditional): all games in a single file",
     "dgt-many" -> "DGT (new): one file per game"
   )
 
   val form = Form(mapping(
     "name" -> nonEmptyText(minLength = 3, maxLength = 80),
     "description" -> nonEmptyText(minLength = 3, maxLength = 4000),
+    "official" -> boolean,
     "syncType" -> text.verifying(syncTypes.map(_._1).contains _),
     "syncUrl" -> nonEmptyText,
     "startsAt" -> optional(utcDate)
@@ -31,6 +33,7 @@ object RelayForm {
   case class Data(
       name: String,
       description: String,
+      official: Boolean,
       syncType: String,
       syncUrl: String,
       startsAt: Option[DateTime]
@@ -42,9 +45,10 @@ object RelayForm {
       else trimmed
     }
 
-    def update(relay: Relay) = relay.copy(
+    def update(relay: Relay, user: User) = relay.copy(
       name = name,
       description = description,
+      official = official && Granter(_.Relay)(user),
       sync = makeSync,
       startsAt = startsAt
     )
@@ -56,6 +60,7 @@ object RelayForm {
       },
       until = none,
       nextAt = none,
+      delay = none,
       log = SyncLog(Vector.empty)
     )
 
@@ -67,8 +72,10 @@ object RelayForm {
       sync = makeSync,
       likes = lila.study.Study.Likes(1),
       createdAt = DateTime.now,
-      finishedAt = none,
-      startsAt = startsAt
+      finished = false,
+      official = official && Granter(_.Relay)(user),
+      startsAt = startsAt,
+      startedAt = none
     )
   }
 
@@ -77,6 +84,7 @@ object RelayForm {
     def make(relay: Relay) = Data(
       name = relay.name,
       description = relay.description,
+      official = relay.official,
       syncType = relay.sync.upstream.key,
       syncUrl = relay.sync.upstream.url,
       startsAt = relay.startsAt

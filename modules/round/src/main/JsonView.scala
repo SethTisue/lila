@@ -6,14 +6,13 @@ import scala.math
 import play.api.libs.json._
 
 import lila.common.ApiVersion
-import lila.common.PimpedJson._
 import lila.game.JsonView._
 import lila.game.{ Pov, Game, Player => GamePlayer }
 import lila.pref.Pref
 import lila.user.{ User, UserRepo }
 
 import chess.format.Forsyth
-import chess.{ Centis, Color, Clock }
+import chess.{ Color, Clock }
 
 import actorApi.SocketStatus
 
@@ -114,6 +113,12 @@ final class JsonView(
             .add("crazyhouse" -> pov.game.crazyData)
             .add("possibleMoves" -> possibleMoves(pov))
             .add("possibleDrops" -> possibleDrops(pov))
+            .add("expiration" -> game.expirable.option {
+              Json.obj(
+                "idleMillis" -> (nowMillis - game.movedAt.getMillis),
+                "millisToMove" -> game.timeForFirstMove.millis
+              )
+            })
       }
 
   private def commonWatcherJson(g: Game, p: GamePlayer, user: Option[User], withFlags: WithFlags): JsObject =

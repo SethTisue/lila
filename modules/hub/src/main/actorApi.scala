@@ -1,7 +1,6 @@
 package lila.hub
 package actorApi
 
-import lila.common.LightUser
 import org.joda.time.DateTime
 
 import play.api.libs.json._
@@ -58,7 +57,12 @@ package mod {
   case class MarkCheater(userId: String, value: Boolean)
   case class MarkBooster(userId: String)
   case class ChatTimeout(mod: String, user: String, reason: String)
+  case class Shadowban(user: String, value: Boolean)
   case class KickFromRankings(userId: String)
+}
+
+package playban {
+  case class Playban(userId: String, mins: Int)
 }
 
 package captcha {

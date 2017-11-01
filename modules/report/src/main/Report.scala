@@ -26,6 +26,7 @@ case class Report(
   def isOther = reason == Reason.Other
   def isTroll = reason == Reason.Troll
   def isInsult = reason == Reason.Insult
+  def isPrint = reason == Reason.CheatPrint
   def isTrollOrInsult = reason == Reason.Troll || reason == Reason.Insult
 
   def unprocessedCheat = unprocessed && isCheat
@@ -80,19 +81,19 @@ object Report {
   private[report] val spontaneousText = "Spontaneous inquiry"
 
   def make(
-    user: User,
+    suspect: Suspect,
     reason: Reason,
     text: String,
-    createdBy: User
+    reporter: Reporter
   ): Report = new Report(
     _id = Random nextString 8,
-    user = user.id,
+    user = suspect.user.id,
     reason = reason,
     room = Room(reason),
     text = text,
     inquiry = none,
     processedBy = none,
     createdAt = DateTime.now,
-    createdBy = createdBy.id
+    createdBy = reporter.user.id
   )
 }

@@ -24,7 +24,6 @@ final class Env(
     val CollectionTrophy = config getString "collection.trophy"
     val CollectionRanking = config getString "collection.ranking"
     val PasswordBPassSecret = config getString "password.bpass.secret"
-    val PasswordUpgradeSha = config getBoolean "password.bpass.autoupgrade"
   }
   import settings._
 
@@ -48,13 +47,6 @@ final class Env(
   def uncacheLightUser(id: User.ID): Unit = lightUserApi invalidate id
 
   def isOnline(userId: User.ID): Boolean = onlineUserIdMemo get userId
-
-  def cli = new lila.common.Cli {
-    def process = {
-      case "user" :: "email" :: userId :: email :: Nil =>
-        UserRepo.email(User normalize userId, EmailAddress(email)) inject "done"
-    }
-  }
 
   system.lilaBus.subscribe(system.actorOf(Props(new Actor {
     def receive = {
@@ -96,9 +88,7 @@ final class Env(
         }
       }
     ),
-    userRepo = UserRepo,
-    upgradeShaPasswords = PasswordUpgradeSha,
-    onShaLogin = lila.mon.user.auth.shaLogin
+    userRepo = UserRepo
   )
 
   lazy val forms = new DataForm(authenticator)

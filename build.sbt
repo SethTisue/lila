@@ -1,12 +1,10 @@
 import com.typesafe.sbt.packager.Keys.scriptClasspath
 import com.typesafe.sbt.SbtScalariform.autoImport.scalariformFormat
-import com.typesafe.sbt.SbtScalariform.ScalariformKeys
 import com.typesafe.sbt.web.SbtWeb.autoImport._
 import play.Play.autoImport._
 import play.sbt.PlayImport._
 import play.twirl.sbt.Import._
 import PlayKeys._
-import scalariform.formatter.preferences._
 
 import BuildSettings._
 import Dependencies._
@@ -18,7 +16,7 @@ lazy val root = Project("lila", file("."))
 
 scalaVersion := globalScalaVersion
 resolvers ++= Dependencies.Resolvers.commons
-scalacOptions := compilerOptions
+scalacOptions ++= compilerOptions
 incOptions := incOptions.value.withNameHashing(true)
 updateOptions := updateOptions.value.withCachedResolution(true)
 sources in doc in Compile := List()
@@ -51,12 +49,8 @@ TwirlKeys.templateImports ++= Seq(
 )
 resourceDirectory in Assets := (sourceDirectory in Compile).value / "assets"
 
-Seq(
-  ScalariformKeys.preferences := ScalariformKeys.preferences.value
-    .setPreference(DanglingCloseParenthesis, Force)
-    .setPreference(DoubleIndentConstructorArguments, true),
-  excludeFilter in scalariformFormat := "*Routes*"
-)
+scalariformPreferences := scalariformPrefs(scalariformPreferences.value)
+excludeFilter in scalariformFormat := "*Routes*"
 
 lazy val modules = Seq(
   common, db, rating, user, security, hub, socket,
@@ -81,7 +75,9 @@ lazy val api = module("api", moduleCPDeps)
       play.api, hasher, typesafeConfig, findbugs,
       reactivemongo.driver, reactivemongo.iteratees,
       kamon.core, kamon.influxdb
-    )
+    ),
+    aggregate in Runtime := false,
+    aggregate in Test := true  // Test <: Runtime
   ) aggregate (moduleRefs: _*)
 
 lazy val puzzle = module("puzzle", Seq(
@@ -164,7 +160,7 @@ lazy val timeline = module("timeline", Seq(common, db, game, user, hub, security
   libraryDependencies ++= provided(play.api, play.test, reactivemongo.driver)
 )
 
-lazy val event = module("event", Seq(common, db, memo)).settings(
+lazy val event = module("event", Seq(common, db, memo, i18n)).settings(
   libraryDependencies ++= provided(play.api, play.test, reactivemongo.driver)
 )
 
@@ -174,7 +170,9 @@ lazy val mod = module("mod", Seq(common, db, user, hub, security, tournament, si
 )
 
 lazy val user = module("user", Seq(common, memo, db, hub, rating)).settings(
-  libraryDependencies ++= provided(play.api, play.test, reactivemongo.driver, hasher)
+  libraryDependencies ++= provided(play.api, play.test, reactivemongo.driver, hasher,
+    reactivemongo.iteratees // only for bcrypt migration
+    )
 )
 
 lazy val game = module("game", Seq(common, memo, db, hub, user, chat)).settings(
@@ -324,7 +322,7 @@ lazy val pref = module("pref", Seq(common, db, user)).settings(
   libraryDependencies ++= provided(play.api, reactivemongo.driver)
 )
 
-lazy val message = module("message", Seq(common, db, user, hub, relation, security, notifyModule)).settings(
+lazy val message = module("message", Seq(common, db, user, hub, relation, security, shutup, notifyModule)).settings(
   libraryDependencies ++= provided(play.api, reactivemongo.driver)
 )
 

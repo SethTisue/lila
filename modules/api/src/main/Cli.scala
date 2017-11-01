@@ -4,7 +4,7 @@ import akka.actor.ActorSelection
 
 import lila.hub.actorApi.Deploy
 
-private[api] final class Cli(bus: lila.common.Bus, renderer: ActorSelection) extends lila.common.Cli {
+private[api] final class Cli(bus: lila.common.Bus) extends lila.common.Cli {
 
   private val logger = lila.log("cli")
 
@@ -31,8 +31,7 @@ private[api] final class Cli(bus: lila.common.Bus, renderer: ActorSelection) ext
   }
 
   private def processors =
-    lila.user.Env.current.cli.process orElse
-      lila.security.Env.current.cli.process orElse
+    lila.security.Env.current.cli.process orElse
       lila.i18n.Env.current.cli.process orElse
       lila.gameSearch.Env.current.cli.process orElse
       lila.teamSearch.Env.current.cli.process orElse

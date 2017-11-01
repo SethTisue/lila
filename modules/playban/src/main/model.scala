@@ -1,6 +1,6 @@
 package lila.playban
 
-import org.joda.time.{ DateTime, Duration }
+import org.joda.time.DateTime
 
 case class UserRecord(
     _id: String,
@@ -12,28 +12,24 @@ case class UserRecord(
   def outcomes: List[Outcome] = ~o
   def bans: List[TempBan] = ~b
 
-  def banInEffect = bans.lastOption.??(_.inEffect)
+  def banInEffect = bans.lastOption.exists(_.inEffect)
 
-  lazy val nbOutcomes = outcomes.size
+  def nbOutcomes = outcomes.size
 
-  lazy val nbBadOutcomes = outcomes.count(_ != Outcome.Good)
+  def nbBadOutcomes = outcomes.count(_ != Outcome.Good)
 
-  def badOutcomeRatio: Double =
-    if (nbOutcomes == 0) 0
-    else nbBadOutcomes.toDouble / nbOutcomes
+  def badOutcomeRatio: Float = if (bans.size < 3) 0.4f else 0.3f
 
-  def nbBadOutcomesBeforeBan = if (bans.isEmpty) 3 else 2
-
-  def newBan: Option[TempBan] = {
-    !banInEffect &&
-      nbBadOutcomes >= nbBadOutcomesBeforeBan &&
-      badOutcomeRatio >= 1d / 3
-  } option bans.lastOption.fold(TempBan.initial) { prev =>
-    new Duration(prev.endsAt, DateTime.now).toStandardDays.getDays match {
-      case d if d < 3 => TempBan.make(prev.mins * 3)
-      case d => TempBan.make((prev.mins / Math.log(d).toInt) atLeast 30)
-    }
+  def minBadOutcomes: Int = bans.size match {
+    case 0 => 4
+    case 1 | 2 | 3 => 3
+    case _ => 2
   }
+
+  def bannable: Option[TempBan] = {
+    outcomes.lastOption.exists(_ != Outcome.Good) &&
+      nbBadOutcomes >= (badOutcomeRatio * nbOutcomes atLeast minBadOutcomes)
+  } option TempBan.make(bans)
 }
 
 case class TempBan(
@@ -41,25 +37,47 @@ case class TempBan(
     mins: Int
 ) {
 
-  lazy val endsAt = date plusMinutes mins
+  def endsAt = date plusMinutes mins
 
-  def remainingSeconds: Int = (endsAt.getSeconds - nowSeconds).toInt max 0
+  def remainingSeconds: Int = (endsAt.getSeconds - nowSeconds).toInt atLeast 0
 
-  def remainingMinutes: Int = (remainingSeconds / 60) max 1
+  def remainingMinutes: Int = (remainingSeconds / 60) atLeast 1
 
   def inEffect = endsAt isAfter DateTime.now
+
 }
 
 object TempBan {
-  val initialMinutes = 15
-  def initial = make(initialMinutes)
-  def make(minutes: Int) = TempBan(DateTime.now, minutes atMost 60 * 48)
+  private def make(minutes: Int) = TempBan(
+    DateTime.now,
+    minutes atMost 48 * 60
+  )
+
+  /**
+   * Create a playban. First offense: 10 min.
+   * Multiplier of repeat offense after X days:
+   * - 0 days: 3x
+   * - 0 - 5 days: linear scale from 3x to 1x
+   * - >5 days slow drop off
+   */
+  def make(bans: List[TempBan]): TempBan = make(bans.lastOption.fold(10) { prev =>
+    prev.endsAt.toNow.getStandardHours.truncInt match {
+      case h if h < 120 => prev.mins * (180 - h) / 60
+      case h => {
+        // Scale cooldown period by total number of playbans
+        val t = (Math.sqrt(bans.size) * 20 * 24).toInt
+        (prev.mins * (t + 120 - h) / t)
+      }
+    }
+  } atLeast (15 * bans.size + 10))
 }
 
 sealed abstract class Outcome(
     val id: Int,
     val name: String
-)
+) {
+  val key = toString.head.toLower + toString.tail
+}
 
 object Outcome {
 
@@ -68,8 +86,10 @@ object Outcome {
   case object NoPlay extends Outcome(2, "Won't play a move")
   case object RageQuit extends Outcome(3, "Quits without resigning")
   case object Sitting extends Outcome(4, "Lets time run out")
+  case object SitMoving extends Outcome(5, "Waits then moves at last moment")
+  case object Sandbag extends Outcome(6, "Deliberately lost the game")
 
-  val all = List(Good, Abort, NoPlay, RageQuit, Sitting)
+  val all = List(Good, Abort, NoPlay, RageQuit, Sitting, SitMoving, Sandbag)
 
   val byId = all map { v => (v.id, v) } toMap
 

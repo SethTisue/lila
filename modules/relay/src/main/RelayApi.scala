@@ -2,6 +2,7 @@ package lila.relay
 
 import akka.actor._
 import org.joda.time.DateTime
+import ornicar.scalalib.Zero
 import play.api.libs.json._
 import reactivemongo.bson._
 
@@ -10,59 +11,44 @@ import lila.study.{ StudyApi, Study, Settings }
 import lila.user.User
 
 final class RelayApi(
-    coll: Coll,
+    repo: RelayRepo,
     studyApi: StudyApi,
+    withStudy: RelayWithStudy,
     system: ActorSystem
 ) {
 
   import BSONHandlers._
   import lila.study.BSONHandlers.LikesBSONHandler
 
-  def byId(id: Relay.Id) = coll.byId[Relay](id.value)
+  def byId(id: Relay.Id) = repo.coll.byId[Relay](id.value)
 
   def byIdAndOwner(id: Relay.Id, owner: User) = byId(id) map {
     _.filter(_.ownerId == owner.id)
   }
 
-  def byIdWithStudy(id: Relay.Id): Fu[Option[Relay.WithStudy]] =
-    byId(id) flatMap {
-      _ ?? { relay =>
-        studyApi.byId(relay.studyId) map2 { (study: Study) =>
-          Relay.WithStudy(relay, study)
-        }
-      }
+  def byIdWithStudy(id: Relay.Id): Fu[Option[Relay.WithStudy]] = WithRelay(id) { relay =>
+    studyApi.byId(relay.studyId) map2 { (study: Study) =>
+      Relay.WithStudy(relay, study)
     }
+  }
 
-  def all(me: Option[User]): Fu[Relay.Selection] =
-    created.flatMap(withStudyAndLiked(me)) zip
-      started.flatMap(withStudyAndLiked(me)) zip
-      closed.flatMap(withStudyAndLiked(me)) map {
-        case c ~ s ~ t => Relay.Selection(c, s, t)
+  def fresh(me: Option[User]): Fu[Relay.Fresh] =
+    repo.scheduled.flatMap(withStudy andLiked me) zip
+      repo.ongoing.flatMap(withStudy andLiked me) map {
+        case c ~ s => Relay.Fresh(c, s)
       }
 
-  def toSync = coll.find($doc(
+  private[relay] def toSync = repo.coll.find($doc(
     "sync.until" $exists true,
     "sync.nextAt" $lt DateTime.now
   )).list[Relay]()
 
   def setLikes(id: Relay.Id, likes: lila.study.Study.Likes): Funit =
-    coll.updateField($id(id), "likes", likes).void
-
-  def created = coll.find($doc(
-    "startsAt" $gt DateTime.now
-  )).sort($sort asc "startsAt").list[Relay]()
-
-  def started = coll.find($doc(
-    "sync.until" $exists true
-  )).sort($sort asc "startsAt").list[Relay]()
-
-  def closed = coll.find($doc(
-    "finishedAt" $exists true
-  )).sort($sort asc "startsAt").list[Relay]()
+    repo.coll.updateField($id(id), "likes", likes).void
 
   def create(data: RelayForm.Data, user: User): Fu[Relay] = {
     val relay = data make user
-    coll.insert(relay) >>
+    repo.coll.insert(relay) >>
       studyApi.create(lila.study.StudyMaker.Data(
         id = relay.studyId.some,
         name = Study.Name(relay.name).some,
@@ -74,43 +60,59 @@ final class RelayApi(
       ), user) inject relay
   }
 
-  def update(relay: Relay, from: Option[Relay] = None): Funit =
-    coll.update($id(relay.id), relay).void >> from.?? { old =>
-      (old.finishedAt != relay.finishedAt || relay.sync.until != old.sync.until) ?? publishRelay(relay)
-    }
-
-  def setSync(id: Relay.Id, user: User, v: Boolean): Funit = byId(id) flatMap {
-    _ ?? { r =>
-      val relay = if (v) r.withSync(_.start) else r.withSync(_.stop)
-      coll.update($id(relay.id.value), relay).void >> publishRelay(relay)
-    }
+  def requestPlay(id: Relay.Id, v: Boolean): Funit = WithRelay(id) { relay =>
+    update(relay) { r =>
+      if (v) r.withSync(_.play) else r.withSync(_.pause)
+    } void
   }
 
-  def unFinish(id: Relay.Id) =
-    coll.unsetField($id(id), "finishedAt").void >> publishRelay(id)
+  def update(from: Relay)(f: Relay => Relay): Fu[Relay] = {
+    val relay = f(from)
+    if (relay == from) fuccess(relay)
+    else repo.coll.update($id(relay.id), relay).void >> {
+      (relay.sync.playing != from.sync.playing) ?? publishRelay(relay)
+    } >>- {
+      relay.sync.log.events.lastOption.ifTrue(relay.sync.log != from.sync.log).foreach { event =>
+        sendToContributors(relay.id, "relayLog", JsonView.syncLogEventWrites writes event)
+      }
+    } inject relay
+  }
 
-  def addLog(id: Relay.Id, event: SyncLog.Event): Funit =
-    coll.update(
-      $id(id),
-      $doc("$push" -> $doc(
-        "sync.log" -> $doc(
-          "$each" -> List(event),
-          "$slice" -> -SyncLog.historySize
-        )
-      )),
-      upsert = true
-    ).void >>
-      sendToContributors(id, "relayLog", JsonView.syncLogEventWrites writes event) >>-
-      event.error.foreach { err => logger.info(s"$id $err") }
+  def getOngoing(id: Relay.Id): Fu[Option[Relay]] =
+    repo.coll.find($doc("_id" -> id, "finished" -> false)).uno[Relay]
+
+  private[relay] def autoStart: Funit =
+    repo.coll.find($doc(
+      "startsAt" $lt DateTime.now.plusMinutes(10), // start 10 minutes early to fetch boards
+      "startedAt" $exists false,
+      "sync.until" $exists false
+    )).list[Relay]() flatMap {
+      _.map { relay =>
+        logger.info(s"Automatically start $relay")
+        requestPlay(relay.id, true)
+      }.sequenceFu.void
+    }
+
+  private[relay] def autoFinishNotSyncing: Funit =
+    repo.coll.find($doc(
+      "sync.until" $exists false,
+      "finished" -> false,
+      "startedAt" $lt DateTime.now.minusHours(3)
+    )).list[Relay]() flatMap {
+      _.map { relay =>
+        logger.info(s"Automatically finish $relay")
+        update(relay)(_.finish)
+      }.sequenceFu.void
+    }
+
+  private[relay] def WithRelay[A: Zero](id: Relay.Id)(f: Relay => Fu[A]): Fu[A] =
+    byId(id) flatMap { _ ?? f }
 
   private[relay] def onStudyRemove(studyId: String) =
-    coll.remove($id(Relay.Id(studyId))).void
+    repo.coll.remove($id(Relay.Id(studyId))).void
 
   private[relay] def publishRelay(relay: Relay): Funit =
     sendToContributors(relay.id, "relayData", JsonView.relayWrites writes relay)
-
-  private def publishRelay(relayId: Relay.Id): Funit =
-    byId(relayId) flatMap { _ ?? publishRelay }
 
   private def sendToContributors(id: Relay.Id, t: String, msg: JsObject): Funit =
     studyApi members Study.Id(id.value) map {
@@ -133,21 +135,4 @@ final class RelayApi(
   }
 
   private def studySocketActor(id: Relay.Id) = system actorSelection s"/user/study-socket/${id.value}"
-
-  private def withStudy(relays: List[Relay]): Fu[List[Relay.WithStudy]] =
-    studyApi byIds relays.map(_.studyId) map { studies =>
-      relays.flatMap { relay =>
-        studies.find(_.id == relay.studyId) map { Relay.WithStudy(relay, _) }
-      }
-    }
-
-  private def withStudyAndLiked(me: Option[User])(relays: List[Relay]): Fu[List[Relay.WithStudyAndLiked]] =
-    studyApi byIds relays.map(_.studyId) flatMap studyApi.withLiked(me) map { s =>
-      relays.flatMap { relay =>
-        s.find(_.study.id == relay.studyId) map {
-          case Study.WithLiked(study, liked) => Relay.WithStudyAndLiked(relay, study, liked)
-        }
-      }
-    }
-
 }

@@ -6,12 +6,12 @@ import reactivemongo.bson._
 import scala.concurrent.duration._
 
 import lila.db.dsl._
-import lila.memo.AsyncCache
 import lila.user.{ User, UserRepo, NoteApi }
 
 final class ReportApi(
     val coll: Coll,
     autoAnalysis: AutoAnalysis,
+    discarder: ReportDiscarder,
     noteApi: NoteApi,
     securityApi: lila.security.SecurityApi,
     isOnline: User.ID => Boolean,
@@ -26,28 +26,34 @@ final class ReportApi(
   private implicit val InquiryBSONHandler = Macros.handler[Inquiry]
   private implicit val ReportBSONHandler = Macros.handler[Report]
 
-  def create(setup: ReportSetup, by: User): Funit = create(Report.make(
-    user = setup.user,
+  def create(setup: ReportSetup, by: Reporter): Funit = create(Report.make(
+    suspect = setup.suspect,
     reason = Reason(setup.reason).err(s"Invalid report reason ${setup.reason}"),
     text = setup.text,
-    createdBy = by
-  ), setup.user, by)
+    reporter = by
+  ), setup.suspect, by)
 
-  def create(report: Report, reported: User, by: User): Funit = !by.reportban ?? {
+  def create(report: Report, reported: Suspect, by: Reporter): Funit = !by.user.reportban ?? {
     !isAlreadySlain(report, reported) ?? {
+      discarder(report, by, accuracy(report)).flatMap {
+        case true =>
+          logger.info(s"Discarded report $report")
+          lila.mon.mod.report.discard(report.reason.key)()
+          funit
+        case false =>
+          lila.mon.mod.report.create(report.reason.key)()
 
-      lila.mon.mod.report.create(report.reason.key)()
+          def insert = coll.insert(report).void >>
+            autoAnalysis(report) >>-
+            bus.publish(lila.hub.actorApi.report.Created(reported.user.id, report.reason.key, by.user.id), 'report)
 
-      def insert = coll.insert(report).void >>
-        autoAnalysis(report) >>-
-        bus.publish(lila.hub.actorApi.report.Created(reported.id, report.reason.key, by.id), 'report)
-
-      if (by.id == UserRepo.lichessId) coll.update(
-        selectRecent(reported, report.reason),
-        $doc("$set" -> ReportBSONHandler.write(report).remove("processedBy", "_id"))
-      ) flatMap { res => (res.n == 0) ?? insert }
-      else insert
-    } >>- monitorUnprocessed
+          if (List("irwin", UserRepo.lichessId) contains by.user.id) coll.update(
+            selectRecent(reported, report.reason),
+            $doc("$set" -> ReportBSONHandler.write(report).remove("processedBy", "_id"))
+          ) flatMap { res => (res.n == 0) ?? insert }
+          else insert
+      } >>- monitorUnprocessed
+    }
   }
 
   private def monitorUnprocessed = {
@@ -57,10 +63,10 @@ final class ReportApi(
     }
   }
 
-  private def isAlreadySlain(report: Report, user: User) =
-    (report.isCheat && user.engine) ||
-      (report.isAutomatic && report.isOther && user.troll) ||
-      (report.isTrollOrInsult && user.troll)
+  private def isAlreadySlain(report: Report, suspect: Suspect) =
+    (report.isCheat && suspect.user.engine) ||
+      (report.isAutomatic && report.isOther && suspect.user.troll) ||
+      (report.isTrollOrInsult && suspect.user.troll)
 
   def getMod(username: String): Fu[Option[Mod]] =
     UserRepo named username map2 Mod.apply
@@ -78,7 +84,7 @@ final class ReportApi(
         text = "Shares print with known cheaters",
         gameId = "",
         move = ""
-      ), lichess)
+      ), Reporter(lichess))
       case _ => funit
     }
   }
@@ -92,7 +98,7 @@ final class ReportApi(
         text = text,
         gameId = "",
         move = ""
-      ), lichess)
+      ), Reporter(lichess))
       case _ => funit
     }
   }
@@ -105,7 +111,7 @@ final class ReportApi(
         text = s"""$name bot detected on ${referer | "?"}""",
         gameId = "",
         move = ""
-      ), lichess)
+      ), Reporter(lichess))
       case _ => funit
     }
   }
@@ -121,7 +127,7 @@ final class ReportApi(
             else s"Sandbagging - the winning player @${winner.username} has different IPs & prints",
           gameId = "",
           move = ""
-        ), lichess)
+        ), Reporter(lichess))
         case _ => funit
       }
 
@@ -164,7 +170,7 @@ final class ReportApi(
         text = text,
         gameId = "",
         move = ""
-      ), lichess)
+      ), Reporter(lichess))
       case _ => funit
     }
   } >>- monitorUnprocessed
@@ -242,27 +248,30 @@ final class ReportApi(
 
   object accuracy {
 
-    private val cache = asyncCache.clearable[User.ID, Int](
+    private val cache = asyncCache.clearable[User.ID, Option[Int]](
       name = "reporterAccuracy",
       f = forUser,
-      expireAfter = _.ExpireAfterWrite(1 hours)
+      expireAfter = _.ExpireAfterWrite(24 hours)
     )
 
-    private def forUser(reporterId: User.ID): Fu[Int] = for {
-      reports <- coll.find($doc(
+    private def forUser(reporterId: User.ID): Fu[Option[Int]] =
+      coll.find($doc(
         "createdBy" -> reporterId,
         "reason" -> Reason.Cheat.key,
         "processedBy" $exists true
-      ))
-        .sort($sort.createdDesc)
-        .list[Report](20, ReadPreference.secondaryPreferred)
-      userIds = reports.map(_.user).distinct
-      nbEngines <- UserRepo countEngines userIds
-    } yield Math.round((nbEngines + 0.5f) / (userIds.length + 2f) * 100)
+      )).sort($sort.createdDesc).list[Report](20, ReadPreference.secondaryPreferred) flatMap { reports =>
+        if (reports.size < 5) fuccess(none) // not enough data to know
+        else {
+          val userIds = reports.map(_.user).distinct
+          UserRepo countEngines userIds map { nbEngines =>
+            Math.round((nbEngines + 0.5f) / (userIds.length + 2f) * 100).some
+          }
+        }
+      }
 
     def apply(report: Report): Fu[Option[Int]] =
       (report.reason == Reason.Cheat && !report.processed) ?? {
-        cache get report.createdBy map some
+        cache get report.createdBy
       }
 
     def invalidate(selector: Bdoc): Funit =
@@ -297,9 +306,9 @@ final class ReportApi(
   private def findRecent(nb: Int, selector: Bdoc) =
     coll.find(selector).sort($sort.createdDesc).list[Report](nb)
 
-  private def selectRecent(user: User, reason: Reason): Bdoc = $doc(
+  private def selectRecent(suspect: Suspect, reason: Reason): Bdoc = $doc(
     "createdAt" $gt DateTime.now.minusDays(7),
-    "user" -> user.id,
+    "user" -> suspect.user.id,
     "reason" -> reason.key
   )
 
@@ -336,7 +345,7 @@ final class ReportApi(
     def spontaneous(mod: Mod, sus: Suspect): Fu[Report] = ofModId(mod.user.id) flatMap { current =>
       current.??(cancel(mod)) >> {
         val report = Report.make(
-          sus.user, Reason.Other, Report.spontaneousText, mod.user
+          sus, Reason.Other, Report.spontaneousText, Reporter(mod.user)
         ).copy(inquiry = Report.Inquiry(mod.user.id, DateTime.now).some)
         coll.insert(report) inject report
       }

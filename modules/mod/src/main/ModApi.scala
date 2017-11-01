@@ -33,13 +33,13 @@ final class ModApi(
     }
   }
 
-  private[mod] def autoAdjust(username: String): Funit = for {
+  def autoMark(username: String, modId: User.ID): Funit = for {
     sus <- reportApi.getSuspect(username) flatten s"No such suspect $username"
     unengined <- logApi.wasUnengined(sus)
-    _ <- if (unengined) funit else reportApi.getLichess flatMap {
-      _ ?? { lichess =>
+    _ <- if (unengined) funit else reportApi.getMod(modId) flatMap {
+      _ ?? { mod =>
         lila.mon.cheat.autoMark.count()
-        setEngine(lichess, sus, true)
+        setEngine(mod, sus, true)
       }
     }
   } yield ()
@@ -64,16 +64,18 @@ final class ModApi(
       case true =>
     }
 
-  def setTroll(mod: Mod, prev: Suspect, value: Boolean): Funit = {
+  def setTroll(mod: Mod, prev: Suspect, value: Boolean): Fu[Suspect] = {
     val changed = value != prev.user.troll
     val sus = prev.set(_.copy(troll = value))
     changed ?? {
-      UserRepo.updateTroll(sus.user).void >>-
+      UserRepo.updateTroll(sus.user).void >>- {
         logApi.troll(mod, sus)
+        lilaBus.publish(lila.hub.actorApi.mod.Shadowban(sus.user.id, value), 'shadowban)
+      }
     } >>
       reportApi.process(mod, sus, Set(Room.Coms)) >>- {
         if (value) notifier.reporters(mod, sus)
-      }
+      } inject sus
   }
 
   def setBan(mod: Mod, prev: Suspect, value: Boolean): Funit = for {
@@ -81,7 +83,7 @@ final class ModApi(
     sus = prev.set(_.copy(ipBan = value))
     _ <- UserRepo.setIpBan(sus.user.id, sus.user.ipBan)
     _ <- logApi.ban(mod, sus)
-    _ <- if (sus.user.ipBan) spy.ipStrings.map(firewall.blockIp).sequenceFu >> SecurityStore.disconnect(sus.user.id)
+    _ <- if (sus.user.ipBan) firewall.blockIps(spy.ipStrings) >> SecurityStore.disconnect(sus.user.id)
     else firewall unblockIps spy.ipStrings
   } yield ()
 
@@ -113,9 +115,6 @@ final class ModApi(
     UserRepo.setRoles(user.id, permissions.map(_.name)) >>
       logApi.setPermissions(mod, user.id, permissions)
   }
-
-  def ipban(mod: String, ip: String): Funit =
-    (firewall blockIp IpAddress(ip)) >> logApi.ipban(mod, ip)
 
   def kickFromRankings(mod: String, username: String): Funit = withUser(username) { user =>
     lilaBus.publish(lila.hub.actorApi.mod.KickFromRankings(user.id), 'kickFromRankings)

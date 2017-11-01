@@ -1,6 +1,5 @@
 package lila.site
 
-import scala.collection.mutable.AnyRefMap
 import scala.concurrent.duration.Duration
 
 import akka.actor._
@@ -37,13 +36,13 @@ private[site] final class Socket(timeout: Duration) extends SocketActor[Member](
   }
 
   // don't eject non-pinging API socket clients
-  override def broom {
+  override def broom: Unit = {
     members foreach {
       case (uid, member) => if (!aliveUids.get(uid) && !member.isApi) eject(uid)
     }
   }
 
-  override def quit(uid: String) {
+  override def quit(uid: String): Unit = {
     members get uid foreach { flags.remove(uid, _) }
     super.quit(uid)
   }

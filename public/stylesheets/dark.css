@@ -215,6 +215,7 @@ body.dark #hooks_wrap div.tabs a {
   color: #b0b0b0;
 }
 body.dark #top a.toggle:hover,
+body.dark #clinput a.link:hover,
 body.dark #top a.signin,
 body.dark #hooks_wrap .hook_filter .checkable {
   color: #c0c0c0;
@@ -466,10 +467,6 @@ body.dark ::-webkit-input-placeholder {
 }
 body.dark :-ms-input-placeholder {
   color: #777;
-}
-body.dark #lobby_playban,
-body.dark #lobby_current_game {
-  background: rgba(0,0,0,0.7);
 }
 body.dark #topmenu section > a {
   color: #777;
