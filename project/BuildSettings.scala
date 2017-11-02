@@ -72,7 +72,9 @@ object BuildSettings {
     // "-Ywarn-unused",
     // "-Xlint:missing-interpolator",
     // "-Ywarn-unused-import",
-    "-Ybackend:GenBCode", "-Ydelambdafy:method", "-target:jvm-1.8"
+    "-Ybackend:GenBCode",
+    // "-Ydelambdafy:method",  // not Fortify-friendly! https://github.com/lightbend/scala-fortify/issues/215
+    "-target:jvm-1.8"
   )
 
   val srcMain = Seq(
