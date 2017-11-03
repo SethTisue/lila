@@ -48,7 +48,7 @@ object BuildSettings {
   def defaultDeps = Seq(scalaz, chess, scalalib, jodaTime, ws, java8compat, specs2)
 
   def compile(deps: ModuleID*): Seq[ModuleID] = deps map (_ % "compile")
-  def provided(deps: ModuleID*): Seq[ModuleID] = deps map (_ % "provided")
+  def provided(deps: ModuleID*): Seq[ModuleID] = deps
 
   def module(name: String, deps: Seq[sbt.ClasspathDep[sbt.ProjectReference]] = Seq.empty) =
     Project(
