@@ -34,8 +34,8 @@ object BuildSettings {
     )(
         Resolver.ivyStylePatterns
       ),
-    addCompilerPlugin(
-      "com.lightbend" %% "scala-fortify" % "2ed5b572"
+    libraryDependencies += compilerPlugin(
+      "com.lightbend" %% "scala-fortify" % "0.1.0"
         classifier "assembly" cross CrossVersion.patch
     ),
     scalacOptions += s"-P:fortify:build=lila"
@@ -72,8 +72,6 @@ object BuildSettings {
     // "-Ywarn-unused",
     // "-Xlint:missing-interpolator",
     // "-Ywarn-unused-import",
-    "-Ybackend:GenBCode",
-    // "-Ydelambdafy:method",  // not Fortify-friendly! https://github.com/lightbend/scala-fortify/issues/215
     "-target:jvm-1.8"
   )
 
