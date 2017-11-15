@@ -35,7 +35,7 @@ object BuildSettings {
         Resolver.ivyStylePatterns
       ),
     addCompilerPlugin(
-      "com.lightbend" %% "scala-fortify" % "0.1.2"
+      "com.lightbend" %% "scala-fortify" % "0.1.3"
         classifier "assembly" cross CrossVersion.patch
     ),
     scalacOptions += s"-P:fortify:build=lila"
